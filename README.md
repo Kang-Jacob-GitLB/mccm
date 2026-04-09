@@ -6,9 +6,9 @@
 
 | 스킬 | 설명 |
 |------|------|
-| [commit](plugins/jacob-plugin/skills/commit/) | Git 커밋 스킬 — 보안 검토, 브랜치 생성, 스테이징, 커밋 메시지 작성 |
-| [pr](plugins/jacob-plugin/skills/pr/) | PR 생성 스킬 — push, 제목/본문 생성, assignee, label 자동 설정, Actions 체크 추적 |
-| [cleanup](plugins/jacob-plugin/skills/cleanup/) | 리모트 동기화 스킬 — 기본 브랜치 이동, pull, prune, 로컬 브랜치 정리 |
+| [commit](plugins/devpack/skills/commit/) | Git 커밋 스킬 — 보안 검토, 브랜치 생성, 스테이징, 커밋 메시지 작성 |
+| [pr](plugins/devpack/skills/pr/) | PR 생성 스킬 — push, 제목/본문 생성, assignee, label 자동 설정, Actions 체크 추적 |
+| [cleanup](plugins/devpack/skills/cleanup/) | 리모트 동기화 스킬 — 기본 브랜치 이동, pull, prune, 로컬 브랜치 정리 |
 
 ## 설치 방법
 
@@ -21,14 +21,14 @@ claude plugin marketplace add Kang-Jacob-GitLB/jacob-plugin
 ### 2. 플러그인 설치
 
 ```bash
-claude plugin install jacob-plugin@jacob-plugin
+claude plugin install devpack@jacob-plugin
 ```
 
 ### 3. 플러그인 업데이트
 
 ```bash
 claude plugin marketplace update jacob-plugin
-claude plugin update jacob-plugin@jacob-plugin
+claude plugin update devpack@jacob-plugin
 ```
 
 ## 프로젝트별 커스터마이즈

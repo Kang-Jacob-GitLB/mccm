@@ -11,8 +11,8 @@
   },
   "plugins": [
     {
-      "name": "jacob-plugin",
-      "source": "./plugins/jacob-plugin",
+      "name": "devpack",
+      "source": "./plugins/devpack",
       "description": "Git 워크플로우 스킬 — commit, pr, cleanup"
     }
   ]
