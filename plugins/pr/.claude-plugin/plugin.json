@@ -1,0 +1,12 @@
+{
+  "name": "pr",
+  "version": "1.0.0",
+  "description": "PR 생성 스킬 — push, 제목/본문 생성, assignee, label 자동 설정",
+  "author": {
+    "name": "jacob",
+    "email": "jacob@litbig.com"
+  },
+  "license": "MIT",
+  "keywords": ["git", "pull-request", "github", "code-review", "gh-cli", "label", "assignee"],
+  "skills": "./skills/"
+}

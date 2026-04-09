@@ -1,0 +1,12 @@
+{
+  "name": "cleanup",
+  "version": "1.0.0",
+  "description": "리모트 동기화 스킬 — 기본 브랜치 이동, pull, prune, 로컬 브랜치 정리",
+  "author": {
+    "name": "jacob",
+    "email": "jacob@litbig.com"
+  },
+  "license": "MIT",
+  "keywords": ["git", "cleanup", "branch-cleanup", "prune", "post-merge", "housekeeping"],
+  "skills": "./skills/"
+}

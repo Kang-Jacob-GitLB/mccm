@@ -1,7 +1,9 @@
 {
-  "name": "jacob",
+  "name": "jacob-plugin",
   "owner": {
-    "name": "minkyu"
+    "name": "jacob",
+    "email": "jacob@litbig.com",
+    "url": "https://github.com/Kang-Jacob-GitLB/jacob-plugin"
   },
   "metadata": {
     "description": "개인용 Claude Code 플러그인 마켓플레이스",
@@ -9,10 +11,19 @@
   },
   "plugins": [
     {
-      "name": "git-workflow",
-      "source": "./plugins/git-workflow",
-      "category": "productivity",
-      "description": "범용 Git 워크플로우 스킬 (commit, pr, cleanup) — 프로젝트별 CLAUDE.md Git Conventions로 커스터마이즈"
+      "name": "commit",
+      "source": "./plugins/commit",
+      "description": "Git 커밋 스킬 — 보안 검토, 브랜치 생성, 스테이징, 커밋 메시지 작성"
+    },
+    {
+      "name": "pr",
+      "source": "./plugins/pr",
+      "description": "PR 생성 스킬 — push, 제목/본문 생성, assignee, label 자동 설정"
+    },
+    {
+      "name": "cleanup",
+      "source": "./plugins/cleanup",
+      "description": "리모트 동기화 스킬 — 기본 브랜치 이동, pull, prune, 로컬 브랜치 정리"
     }
   ]
 }
