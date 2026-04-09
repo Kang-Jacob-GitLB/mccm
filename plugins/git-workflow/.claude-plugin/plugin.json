@@ -1,0 +1,8 @@
+{
+  "name": "git-workflow",
+  "version": "1.0.0",
+  "description": "범용 Git 워크플로우 스킬 (commit, pr, cleanup) — 프로젝트별 CLAUDE.md Git Conventions로 커스터마이즈",
+  "author": {
+    "name": "minkyu"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "jacob",
+  "owner": {
+    "name": "minkyu"
+  },
+  "metadata": {
+    "description": "개인용 Claude Code 플러그인 마켓플레이스",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "git-workflow",
+      "source": "./plugins/git-workflow",
+      "category": "productivity",
+      "description": "범용 Git 워크플로우 스킬 (commit, pr, cleanup) — 프로젝트별 CLAUDE.md Git Conventions로 커스터마이즈"
+    }
+  ]
+}
