@@ -9,6 +9,8 @@
 | [commit](plugins/devpack/skills/commit/) | Git 커밋 스킬 — 보안 검토, 브랜치 생성, 스테이징, 커밋 메시지 작성 |
 | [pr](plugins/devpack/skills/pr/) | PR 생성 스킬 — push, 제목/본문 생성, assignee, label 자동 설정, Actions 체크 추적 |
 | [cleanup](plugins/devpack/skills/cleanup/) | 리모트 동기화 스킬 — 기본 브랜치 이동, pull, prune, 로컬 브랜치 정리 |
+| [md-to-pdf](plugins/devpack/skills/md-to-pdf/) | Markdown → PDF 변환 — GitHub 웹 스타일 렌더링 |
+| [md-to-gdoc](plugins/devpack/skills/md-to-gdoc/) | Markdown → Google Docs 변환 — GitHub 스타일 서식, gws CLI 사용 |
 
 ## 설치 방법
 
@@ -75,7 +77,11 @@ jacob-plugin/
             │   └── SKILL.md
             ├── pr/
             │   └── SKILL.md
-            └── cleanup/
+            ├── cleanup/
+            │   └── SKILL.md
+            ├── md-to-pdf/
+            │   └── SKILL.md
+            └── md-to-gdoc/
                 └── SKILL.md
 ```
 

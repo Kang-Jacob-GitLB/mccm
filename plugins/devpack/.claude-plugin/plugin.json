@@ -1,12 +1,12 @@
 {
   "name": "devpack",
-  "version": "1.0.0",
-  "description": "Git 워크플로우 스킬 — commit, pr, cleanup",
+  "version": "1.1.0",
+  "description": "개인 개발 스킬팩 — Git 워크플로우, 문서 변환",
   "author": {
     "name": "jacob",
     "email": "jacob@litbig.com"
   },
   "license": "MIT",
-  "keywords": ["git", "commit", "pull-request", "cleanup", "workflow"],
+  "keywords": ["git", "commit", "pull-request", "cleanup", "workflow", "markdown", "pdf", "google-docs"],
   "skills": "./skills/"
 }
