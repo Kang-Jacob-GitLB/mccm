@@ -1,5 +1,9 @@
 # mccm 개발 규칙
 
+## 환경 동기화
+
+GitHub Gist의 `mccm.json`으로 여러 PC의 Claude Code 환경(플러그인, MCP, hooks, settings, CLI 도구)을 동기화한다. `/download`로 Gist→로컬 적용, `/upload`로 로컬→Gist 업로드.
+
 ## 스킬 변경 시 체크리스트
 
 스킬 추가/수정/삭제 시 아래 항목을 반드시 수행한다:

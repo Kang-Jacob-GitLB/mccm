@@ -7,7 +7,7 @@
   },
   "metadata": {
     "description": "개인용 Claude Code 플러그인 마켓플레이스",
-    "version": "2.0.0"
+    "version": "3.0.0"
   },
   "plugins": [
     {
@@ -18,7 +18,7 @@
     {
       "name": "env",
       "source": "./plugins/env",
-      "description": "Claude Code 환경 동기화 — 플러그인, MCP, hooks, settings를 여러 PC에서 동일 유지"
+      "description": "Claude Code 환경 동기화 — Gist 기반 upload/download로 플러그인, MCP, hooks, settings를 여러 PC에서 동일 유지"
     }
   ]
 }

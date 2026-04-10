@@ -1,12 +1,12 @@
 {
   "name": "env",
-  "version": "1.0.0",
-  "description": "Claude Code 환경 동기화 — 플러그인, MCP, hooks, settings를 여러 PC에서 동일 유지",
+  "version": "2.0.0",
+  "description": "Claude Code 환경 동기화 — Gist 기반 upload/download로 플러그인, MCP, hooks, settings를 여러 PC에서 동일 유지",
   "author": {
     "name": "jacob",
     "email": "jacob@litbig.com"
   },
   "license": "MIT",
-  "keywords": ["env", "sync", "export", "environment", "plugin-manager", "mcp", "hooks", "settings"],
+  "keywords": ["env", "upload", "download", "environment", "plugin-manager", "mcp", "hooks", "settings"],
   "skills": "./skills/"
 }

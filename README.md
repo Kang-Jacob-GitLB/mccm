@@ -20,9 +20,8 @@
 
 | 스킬 | 설명 |
 |------|------|
-| [sync](plugins/env/skills/sync/) | mccm.json 기반 동기화 — 충돌 시 사용자에게 취소/대치/추가 선택 |
-| [add](plugins/env/skills/add/) | 환경에 항목 추가 — mccm.json gist 수정, 즉시 적용 |
-| [export](plugins/env/skills/export/) | 현재 PC의 settings.json에서 mccm.json 자동 생성 |
+| [download](plugins/env/skills/download/) | Gist → 로컬 적용 — 충돌 시 사용자 확인, 로컬 전용 항목 삭제 선택 |
+| [upload](plugins/env/skills/upload/) | 로컬 → Gist 업로드 — Gist 전용 항목 삭제 선택, 사용자 확인 후 반영 |
 
 **사전 요구사항:** [GitHub CLI (`gh`)](https://cli.github.com/) 설치 및 인증 (`gh auth login`)
 
@@ -46,9 +45,9 @@ claude plugin marketplace add Kang-Jacob-GitLB/mccm
 claude plugin install env@mccm
 ```
 
-설치 후 `/sync` 실행하면 gist의 mccm.json 기반으로 전체 환경(플러그인, MCP, hooks, settings)이 구성된다.
+설치 후 `/download` 실행하면 Gist의 mccm.json 기반으로 전체 환경(플러그인, MCP, hooks, settings)이 구성된다.
 
-이후 환경 변경은 `/add`로 추가하면 git에 자동 반영되어 다른 PC에서 `/sync`로 동기화된다.
+환경을 변경한 후 `/upload`로 Gist에 반영하면 다른 PC에서 `/download`로 동기화할 수 있다.
 
 ## 프로젝트별 커스터마이즈
 
@@ -104,11 +103,9 @@ mccm/
         ├── .claude-plugin/
         │   └── plugin.json
         └── skills/              ← mccm.json은 gist로 관리
-            ├── sync/
+            ├── download/
             │   └── SKILL.md
-            ├── add/
-            │   └── SKILL.md
-            └── export/
+            └── upload/
                 └── SKILL.md
 ```
 
