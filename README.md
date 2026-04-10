@@ -28,6 +28,8 @@ claude plugin install devpack@jacob-plugin
 
 ### 3. 플러그인 업데이트
 
+세션 시작 시 자동으로 마켓플레이스가 업데이트된다. 수동으로 업데이트하려면:
+
 ```bash
 claude plugin marketplace update jacob-plugin
 claude plugin update devpack@jacob-plugin

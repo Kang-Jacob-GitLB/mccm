@@ -1,6 +1,6 @@
 {
   "name": "devpack",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "개인 개발 스킬팩 — Git 워크플로우, 문서 변환",
   "author": {
     "name": "jacob",
@@ -8,5 +8,18 @@
   },
   "license": "MIT",
   "keywords": ["git", "commit", "pull-request", "cleanup", "workflow", "markdown", "pdf", "google-docs"],
-  "skills": "./skills/"
+  "skills": "./skills/",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "claude plugin marketplace update jacob-plugin 2>/dev/null; true"
+          }
+        ]
+      }
+    ]
+  }
 }
