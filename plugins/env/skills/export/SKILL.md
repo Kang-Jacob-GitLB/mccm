@@ -7,7 +7,7 @@ allowed-tools: Bash, Read, Edit
 ## 현재 상태
 
 - settings.json: !`cat "$HOME/.claude/settings.json" 2>/dev/null || echo "not found"`
-- 현재 env.json: !`cat "$(find "$HOME/.claude" -maxdepth 8 -path "*/env/env.json" -type f 2>/dev/null | head -1)" 2>/dev/null || echo "not found"`
+- 현재 env.json (gist): !`gh gist view 7360c28bfd37c47cd7d19d4106224e45 --filename env.json 2>/dev/null || echo "not found"`
 
 ## 변수 치환 규칙 (역방향)
 
@@ -59,31 +59,20 @@ settings.json에서 아래 섹션을 추출한다:
 
 생성된 env.json 내용을 사용자에게 보여주고 확인을 받는다.
 
-### 5. jacob-plugin 저장소에 푸시
+### 5. gist 업데이트
 
 ```bash
-TMPDIR=$(mktemp -d)
-git clone --depth 1 https://github.com/Kang-Jacob-GitLB/jacob-plugin.git "$TMPDIR/jacob-plugin"
+# env.json을 임시 파일에 저장
+cat > /tmp/mccm-env.json <<'EOF'
+{생성된 env.json 내용}
+EOF
+
+# gist 업데이트
+gh gist edit 7360c28bfd37c47cd7d19d4106224e45 --filename env.json --add /tmp/mccm-env.json
+rm -f /tmp/mccm-env.json
 ```
 
-`$TMPDIR/jacob-plugin/plugins/env/env.json`에 저장한다.
-
-```bash
-cd "$TMPDIR/jacob-plugin"
-git add plugins/env/env.json
-git commit -m "feat: env.json 환경 내보내기"
-git push origin main
-```
-
-### 6. 설치된 env.json 동기화 및 정리
-
-```bash
-INSTALLED_ENV=$(find "$HOME/.claude" -maxdepth 8 -path "*/env/env.json" -type f 2>/dev/null | head -1)
-[ -n "$INSTALLED_ENV" ] && cp "$TMPDIR/jacob-plugin/plugins/env/env.json" "$INSTALLED_ENV"
-rm -rf "$TMPDIR"
-```
-
-### 7. 완료 보고
+### 6. 완료 보고
 
 - 추출된 마켓플레이스 수
 - 추출된 플러그인 수

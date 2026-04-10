@@ -1,9 +1,9 @@
 {
-  "name": "jacob-plugin",
+  "name": "mccm",
   "owner": {
     "name": "jacob",
     "email": "jacob@litbig.com",
-    "url": "https://github.com/Kang-Jacob-GitLB/jacob-plugin"
+    "url": "https://github.com/Kang-Jacob-GitLB/mccm"
   },
   "metadata": {
     "description": "개인용 Claude Code 플러그인 마켓플레이스",

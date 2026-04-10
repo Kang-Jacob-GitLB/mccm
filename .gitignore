@@ -1,6 +1,9 @@
 # OMC local state
 .omc/
 
+# env.json is managed via gist
+plugins/env/env.json
+
 # Environment
 .env
 .env.*

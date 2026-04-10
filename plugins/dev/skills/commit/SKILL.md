@@ -14,7 +14,7 @@ allowed-tools: Bash, Read
 
 ## 오버라이드 슬롯
 
-프로젝트의 CLAUDE.md에 `## jacob-plugin:Commit Conventions` 섹션이 있으면, 아래 슬롯 중 명시된 항목만 대체한다. 명시되지 않은 슬롯은 기본값을 사용한다.
+프로젝트의 CLAUDE.md에 `## mccm:Commit Conventions` 섹션이 있으면, 아래 슬롯 중 명시된 항목만 대체한다. 명시되지 않은 슬롯은 기본값을 사용한다.
 
 | 슬롯 | 키 | 기본값 |
 |------|-----|--------|
@@ -28,7 +28,7 @@ allowed-tools: Bash, Read
 
 **CLAUDE.md 작성 예시:**
 ```markdown
-## jacob-plugin:Commit Conventions
+## mccm:Commit Conventions
 - language: 한글
 - title-format: {제목}
 - types: add, fix, update, remove

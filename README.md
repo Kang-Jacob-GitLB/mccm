@@ -1,4 +1,4 @@
-# jacob-plugin
+# mccm
 
 개인용 Claude Code 플러그인 마켓플레이스.
 
@@ -39,22 +39,14 @@
 
 ## 설치 방법
 
-### 빠른 설치 (새 PC에서 1회)
-
 ```bash
-git clone https://github.com/Kang-Jacob-GitLB/jacob-plugin.git
-bash jacob-plugin/bootstrap.sh
+claude plugin marketplace add Kang-Jacob-GitLB/mccm
+claude plugin install env@mccm
 ```
 
-`bootstrap.sh`가 마켓플레이스 등록 → env 플러그인 설치 → env.json 기반 전체 환경 동기화를 한 번에 처리한다.
+설치 후 `/sync` 실행하면 env.json 기반으로 전체 환경(플러그인, MCP, hooks, settings)이 구성된다.
 
-### 수동 설치
-
-```bash
-claude plugin marketplace add Kang-Jacob-GitLB/jacob-plugin
-claude plugin install env@jacob-plugin
-claude plugin install dev@jacob-plugin
-```
+이후 환경 변경은 `/add`로 추가하면 git에 자동 반영되어 다른 PC에서 `/sync`로 동기화된다.
 
 ## 프로젝트별 커스터마이즈
 
@@ -62,36 +54,35 @@ claude plugin install dev@jacob-plugin
 
 | 스킬 | CLAUDE.md 섹션 | 슬롯 |
 |------|---------------|------|
-| commit | `## jacob-plugin:Commit Conventions` | language, title-format, types, title-max-length, body, branch-prefixes, branch-format |
-| pr | `## jacob-plugin:PR Conventions` | base-branch, language, title-format, types, title-max-length, body-format, label-map, auto-assignee, checks-timeout |
-| cleanup | `## jacob-plugin:Cleanup Conventions` | default-branch, protected-branches |
+| commit | `## mccm:Commit Conventions` | language, title-format, types, title-max-length, body, branch-prefixes, branch-format |
+| pr | `## mccm:PR Conventions` | base-branch, language, title-format, types, title-max-length, body-format, label-map, auto-assignee, checks-timeout |
+| cleanup | `## mccm:Cleanup Conventions` | default-branch, protected-branches |
 
 예시 (`CLAUDE.md`):
 
 ```markdown
-## jacob-plugin:Commit Conventions
+## mccm:Commit Conventions
 - language: 한글
 - title-format: {제목}
 - types: add, fix, update, remove
 - title-max-length: 40
 - body: 필수
 
-## jacob-plugin:PR Conventions
+## mccm:PR Conventions
 - language: 한글
 - title-format: [{타입}] {제목}
 - label-map: feat→enhancement, fix→bug
 
-## jacob-plugin:Cleanup Conventions
+## mccm:Cleanup Conventions
 - protected-branches: main, master, develop
 ```
 
 ## 플러그인 구조
 
 ```
-jacob-plugin/
+mccm/
 ├── .claude-plugin/
 │   └── marketplace.json
-├── bootstrap.sh                  ← 새 PC 초기 설정
 └── plugins/
     ├── dev/
     │   ├── .claude-plugin/
@@ -110,11 +101,7 @@ jacob-plugin/
     └── env/
         ├── .claude-plugin/
         │   └── plugin.json
-        ├── env.json              ← 환경 선언 (기준)
-        ├── scripts/
-        │   ├── sync-env.js       ← 동기화 엔진 (Node.js)
-        │   └── sync-env.sh       ← bootstrap 래퍼
-        └── skills/
+        └── skills/              ← env.json은 gist로 관리
             ├── sync/
             │   └── SKILL.md
             ├── add/
@@ -127,4 +114,4 @@ jacob-plugin/
 
 1. `plugins/{플러그인}/skills/{skill-name}/SKILL.md` 작성
 2. PR 생성 → 리뷰 → 머지
-3. 사용자는 `claude plugin marketplace update jacob-plugin` 후 업데이트
+3. 사용자는 세션 시작 시 자동 업데이트 (또는 `claude plugin marketplace update mccm`)

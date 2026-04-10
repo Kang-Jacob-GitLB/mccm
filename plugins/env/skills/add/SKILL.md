@@ -6,7 +6,7 @@ allowed-tools: Bash, Read, Edit
 
 ## 현재 상태
 
-- env.json: !`cat "$(find "$HOME/.claude" -maxdepth 8 -path "*/env/env.json" -type f 2>/dev/null | head -1)" 2>/dev/null || echo "not found"`
+- env.json (gist): !`gh gist view 7360c28bfd37c47cd7d19d4106224e45 --filename env.json 2>/dev/null || echo "not found"`
 
 ## 작업 지침
 
@@ -25,27 +25,23 @@ allowed-tools: Bash, Read, Edit
 - 모호한 경우 사용자에게 확인한다
 - 경로에 머신 의존값이 있으면 `${HOME}`, `${USER}` 변수로 치환하여 저장
 
-### 2. jacob-plugin 저장소 클론
+### 2. gist에서 env.json 가져오기
 
 ```bash
-TMPDIR=$(mktemp -d)
-git clone --depth 1 https://github.com/Kang-Jacob-GitLB/jacob-plugin.git "$TMPDIR/jacob-plugin"
+gh gist view 7360c28bfd37c47cd7d19d4106224e45 --filename env.json > /tmp/mccm-env.json
 ```
 
 ### 3. env.json 수정
 
-`$TMPDIR/jacob-plugin/plugins/env/env.json`을 수정한다.
+`/tmp/mccm-env.json`을 수정한다.
 
 - 이미 존재하는 항목이면 추가하지 않고 사용자에게 알린다
 - 플러그인 추가 시, 해당 마켓플레이스가 `marketplaces`에 없으면 함께 추가한다
 
-### 4. 커밋 및 푸시
+### 4. gist 업데이트
 
 ```bash
-cd "$TMPDIR/jacob-plugin"
-git add plugins/env/env.json
-git commit -m "feat: env.json에 {추가 대상} 추가"
-git push origin main
+gh gist edit 7360c28bfd37c47cd7d19d4106224e45 --filename env.json --add /tmp/mccm-env.json
 ```
 
 ### 5. 즉시 적용
@@ -56,12 +52,10 @@ git push origin main
 - 플러그인: `claude plugin install`
 - MCP/hook/setting: `$HOME/.claude/settings.json`에 직접 병합 (변수 치환 적용)
 
-### 6. 설치된 env.json 동기화 및 정리
+### 6. 정리
 
 ```bash
-INSTALLED_ENV=$(find "$HOME/.claude" -maxdepth 8 -path "*/env/env.json" -type f 2>/dev/null | head -1)
-[ -n "$INSTALLED_ENV" ] && cp "$TMPDIR/jacob-plugin/plugins/env/env.json" "$INSTALLED_ENV"
-rm -rf "$TMPDIR"
+rm -f /tmp/mccm-env.json
 ```
 
 ### 7. 완료 보고

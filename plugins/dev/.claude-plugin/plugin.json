@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "claude plugin marketplace update jacob-plugin 2>/dev/null; true"
+            "command": "claude plugin marketplace update mccm 2>/dev/null; true"
           }
         ]
       }
