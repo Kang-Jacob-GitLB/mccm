@@ -40,8 +40,8 @@ GitHub Gist의 `mccm.json`으로 여러 PC의 Claude Code 환경(플러그인, M
 
 ### 절차
 
-1. 변경된 SKILL.md 파일을 모두 읽고 위 항목을 검토한다.
-2. **문제 없음** → "보안 검토 통과" 한 줄 보고 후 커밋 진행.
+1. OMC의 `security-reviewer` 에이전트(`oh-my-claudecode:security-reviewer`)를 spawn하여 변경된 파일을 검토한다.
+2. **문제 없음** → "보안 검토 통과" 보고 후 커밋 진행.
 3. **문제 발견** → 항목별로 위험 내용과 수정안을 보고하고, 수정 후 재검토한다.
 
 ## Skill routing
