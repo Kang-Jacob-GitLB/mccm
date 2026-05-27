@@ -1,12 +1,14 @@
 ---
 name: worklog-today
-description: 공유 worklog JSONL 에서 오늘(또는 지정일) 작업 내역을 읽어 시간대·프로젝트·커밋·prompt 주제로 요약하고 Jira worklog 입력 후보 표를 생성. 선택적으로 jira CLI 로 워크로그를 dry-run 미리보기/실제 입력까지 수행. "오늘 워크로그", "오늘 한 일 정리", "워크로그 요약", "worklog today", "어제 워크로그", "지난주 워크로그", "jira 워크로그 입력", "워크로그 등록 dry-run" 등에 사용.
+description: Claude Code 세션 트랜스크립트(~/.claude/projects)에서 오늘(또는 지정일) 작업 내역을 읽어 시간대·프로젝트·커밋·prompt 주제로 요약하고 Jira worklog 입력 후보 표를 생성. 선택적으로 jira CLI 로 워크로그를 dry-run 미리보기/실제 입력까지 수행. hook 불필요. "오늘 워크로그", "오늘 한 일 정리", "워크로그 요약", "worklog today", "어제 워크로그", "지난주 워크로그", "jira 워크로그 입력", "워크로그 등록 dry-run" 등에 사용.
 ---
 
 # 오늘 워크로그 요약
 
 ## 목적
-WSL/Windows 양쪽 Claude Code 세션의 `UserPromptSubmit`, `PostToolUse(git commit)`, `SessionStart/Stop` hook 이 남긴 JSONL 을 읽어 하루치 작업을 정리한다. 최종 출력은 사람이 Jira worklog 에 그대로 옮길 수 있는 표를 포함한다.
+Claude Code 가 **세션마다 자동으로 남기는 트랜스크립트**(`~/.claude/projects/<cwd-slug>/<session-id>.jsonl`)를 읽어 하루치 작업을 정리한다. 별도 hook 설치가 **필요 없다** — Claude Code 가 항상 기록하는 대화 로그를 직접 파싱한다. 최종 출력은 사람이 Jira worklog 에 그대로 옮길 수 있는 표를 포함한다.
+
+> 과거 버전은 `UserPromptSubmit`/`PostToolUse`/`SessionStart/Stop` hook 이 쌓은 `worklog-*.jsonl` 을 읽었으나, 동일 정보가 Claude Code 트랜스크립트에 이미 들어있어 hook 의존을 제거했다. 새 머신에서도 셋업 0 으로 바로 동작한다.
 
 ## 주 용도: 퇴근 전 일일 루틴
 이 스킬의 1차 목적은 **매일 퇴근 전 1회 호출로 Jira 워크로그 입력을 반자동화**하는 것이다. 표준 흐름:
@@ -18,111 +20,73 @@ WSL/Windows 양쪽 Claude Code 세션의 `UserPromptSubmit`, `PostToolUse(git co
 
 자동화 범위는 **수동 호출 + 확인 후 apply** (cron 무인 입력 아님). "미리보기"만 원하면 3번(추정 가안 dry-run)에서 멈춘다.
 
-## 데이터 위치 (OS별)
-`WORKLOG_DIR` env 가 설정돼 있으면 **항상 그것을 우선** 사용. 없으면 OS 별 기본 경로:
+## 데이터 소스 (Claude Code 트랜스크립트)
+Claude Code 는 모든 세션을 다음 위치에 JSONL 로 기록한다 — 이게 이 스킬의 **유일한 입력**이다.
 
-| OS | 기본 경로 | 비고 |
+| OS | 트랜스크립트 루트 | 비고 |
 |---|---|---|
-| **Windows** | `C:\Users\<user>\worklog\` | WSL 과 **동일 위치 공유** |
-| **WSL** | `/mnt/c/Users/<user>/worklog/` | 위 Windows 경로의 마운트 = **같은 파일**. Windows/WSL 양쪽 세션 로그가 한 곳에 쌓인다 |
-| **macOS** | `~/worklog/` (`/Users/<user>/worklog/`) | 해당 머신 로컬 |
-| **Linux (Ubuntu 등)** | `~/worklog/` (`/home/<user>/worklog/`) | 해당 머신 로컬 |
+| **Linux / WSL** | `~/.claude/projects/<cwd-slug>/<session-id>.jsonl` | cwd 경로별 디렉토리(워크트리 포함) |
+| **macOS** | `~/.claude/projects/...` | 동일 |
+| **Windows** | `C:\Users\<user>\.claude\projects\...` | WSL 에선 `/mnt/c/Users/<user>/.claude/projects/` 로 접근 가능 |
 
-> Windows·WSL 은 같은 물리 디렉토리(C 드라이브)를 가리켜 로그를 **공유**한다. macOS·native Linux 는 각자 홈 `~/worklog/` 에 **독립 저장**. WSL 의 Windows username 이 위 `<user>` 와 다르거나 위치를 바꾸려면 `WORKLOG_DIR` 로 지정한다.
+- **WSL 에서 실행하면 자동으로 양쪽**(WSL `~/.claude/projects` + Windows `/mnt/c/Users/*/.claude/projects`)을 읽어 머신 병합한다. env 는 경로로 태깅(`wsl`/`windows`/`macos`/`linux`).
+- 트랜스크립트 user 라인엔 `timestamp`(UTC ISO)·`cwd`·`gitBranch`·`sessionId`·`message`(prompt)·`isSidechain` 등이 있어 워크로그에 필요한 정보가 모두 들어있다.
+- 수집·정규화는 `collect.sh` 가 담당한다. 출력은 과거 hook JSONL 과 **동일 스키마**라 `timeline.sh` 와 하위 분석은 그대로 재사용된다:
+  ```json
+  {"ts":"ISO8601(UTC)","env":"wsl|windows|...","event":"prompt|commit|session_start|session_stop","session_id":"...","cwd":"...","branch":"...","prompt":"...","sha":"...","subject":"...","epoch":1716...}
+  ```
 
-파일 패턴: `worklog-{env}-{YYYY-MM}.jsonl` (env = `wsl` / `windows` / `macos` / `linux`).
-
-각 라인 스키마:
-```json
-{"ts":"ISO8601","env":"wsl|windows","event":"prompt|commit|session_start|session_stop","session_id":"...","cwd":"...","branch":"...","prompt":"...","sha":"...","subject":"...","body":"..."}
-```
-
-## 의존성 (외부 도구)
-| 도구 | 필요 시점 | 비고 |
-|---|---|---|
-| `node` | hook 로깅 (필수) | hook 스크립트가 Node. 없으면 JSONL 이 안 쌓임 |
-| `jq` | 분석·시각화 (필수) | 절차 2~3, `timeline.sh`, 겹침회피 파싱 |
-| `jira` | 워크로그 입력 (절차 5) | **ankitpokhrel/jira-cli**. `jira init`(server/login) + `JIRA_API_TOKEN` env 선행. 없으면 절차 1~3(요약·시각화)만 동작 |
-| `curl`, `base64` | 겹침회피 (절차 5) | 같은 날 기존 워크로그 REST 조회. 없으면 회피 없이 진행 |
-
-## 데이터 생성 hook (이 plugin 에 포함)
-이 스킬은 로그를 **직접 만들지 않는다** — 아래 hook 이 JSONL 을 쌓는다. **이 plugin 이 hook 을 함께 포함**하므로(`plugin.json` 의 `hooks`), plugin 을 활성화하면 **자동 등록**된다 (별도 settings.json 설정 불필요).
-
-- 스크립트: `${CLAUDE_PLUGIN_ROOT}/hooks/{log-session,log-prompt,log-commit}.js` (Node)
-- 데이터 경로/env: `WORKLOG_DIR`·`WORKLOG_ENV` 가 있으면 우선, 없으면 스크립트가 **OS 자동 감지**(데이터 위치 표대로 — WSL→`/mnt/c/Users/user/worklog`·`wsl`, macOS/Linux→`~/worklog`·`macos`/`linux`, Windows→`%USERPROFILE%\worklog`·`windows`).
-
-| 이벤트 | 스크립트 | 기록되는 `event` |
-|---|---|---|
-| `SessionStart` | `log-session.js` | `session_start` |
-| `Stop` | `log-session.js` | `session_stop` |
-| `UserPromptSubmit` | `log-prompt.js` | `prompt` |
-| `PostToolUse` (matcher: `Bash`) | `log-commit.js` | `commit` (git commit 감지) |
-
-> ⚠ **중복 주의**: 이전에 `~/.claude/settings.json` 의 `hooks` 에 같은 worklog hook 을 수동 등록해 뒀다면, 이 plugin 과 **둘 다 실행되어 로그가 2배로 쌓인다**. plugin 으로 일원화하려면 settings.json 의 worklog hook 4개(`SessionStart`/`Stop`/`UserPromptSubmit`/`PostToolUse`)를 제거한다. (단 `env` 의 `WORKLOG_DIR`/`WORKLOG_ENV` 는 두어도 무방 — 스크립트가 우선 사용.)
+### 추출 규칙 (collect.sh 내장)
+- **prompt** = 사용자가 실제로 입력한 텍스트. 다음은 제외: tool_result, `<task-notification>`, `<local-command-*>`, 서브에이전트 입력(`isSidechain==true`), `"[Request interrupted...]"`. 슬래시 명령은 `<command-name>`+`<command-args>` 로 `"/cmd args"` 형태로 복원해 포함.
+- **commit** = `git commit` 을 실행한 **Bash tool_use 의 결과**에 찍힌 `"[branch sha] subject"` 만 인정한다(= `git log`/`show`/`rebase` 출력에 섞인 동일 패턴은 배제). `sha` 로 dedup, 최초 시각 유지.
+  - ⚠ **로컬 `git commit` 만** 잡힌다. **GitHub 측 squash/rebase 머지**로 생성된 main 커밋(예: PR 머지 결과 SHA)은 로컬 commit 이 아니라 **누락될 수 있다**(PR 로 확인). 반대로 폐기성 로컬 커밋(`feat: test` 등)도 실제 커밋이면 잡힌다.
+- **session_start / session_stop** = 세션파일별 그 날짜 라인의 min/max 타임스탬프(활동창 근사). hook 시절의 명시적 이벤트 대체.
 
 ## 절차
 
 ### 1. 대상 날짜 결정
-- 기본: `date -I` 의 오늘 (KST). 사용자가 "어제", "5/24", "지난주 월요일" 등 지정하면 그에 맞춰 변환.
-- 출력 시 KST (`+09:00`) 기준으로 표기. JSONL `ts` 는 UTC 이므로 **2-1 시각 변환 규칙**을 반드시 따른다 (+9h 이중적용 주의).
+- 기본: 오늘 (KST). 사용자가 "어제", "5/24", "지난주 월요일" 등 지정하면 그에 맞춰 변환해 `collect.sh` 인자로 넘긴다.
+- 출력 시 KST (`+09:00`) 기준으로 표기. `epoch` 는 raw UTC 이므로 **2-1 시각 변환 규칙**을 따른다.
 
 ### 2. 라인 수집
 ```bash
-# WORKLOG_DIR 우선, 없으면 OS 별 기본 (데이터 위치 표 참조)
-DIR="${WORKLOG_DIR:-$(
-  case "$(uname -s)" in
-    Darwin) echo "$HOME/worklog" ;;                                   # macOS
-    Linux)  if grep -qi microsoft /proc/version 2>/dev/null; then
-              echo "/mnt/c/Users/user/worklog"                        # WSL (Windows 와 공유; username 다르면 WORKLOG_DIR)
-            else echo "$HOME/worklog"; fi ;;                          # native Linux (Ubuntu 등)
-    *)      echo "$HOME/worklog" ;;
-  esac )}"
-DATE="2026-05-26"      # 예시 (KST 기준 대상일)
-YM="${DATE%-*}"        # 2026-05
-export TZ=Asia/Seoul   # awk/date strftime 출력을 KST 로 고정 (2-1 규칙 참조)
-
-# 해당 월 모든 env 파일 합치고, KST 기준 그 날짜만 추출
-#  ⚠ ts 는 밀리초(...29.306Z)를 포함할 수 있다. jq fromdateiso8601 은
-#    "%Y-%m-%dT%H:%M:%SZ" 만 받으므로 sub() 로 소수부를 반드시 strip (안 하면 전 라인 에러).
-for f in "$DIR"/worklog-*-"$YM".jsonl; do [ -f "$f" ] && cat "$f"; done \
-  | jq -c --arg d "$DATE" '
-      (.ts | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) as $utc   # 항상 UTC epoch
-      | (($utc + 9*3600) | strftime("%Y-%m-%d")) as $kst_date     # jq strftime=UTC고정 → 날짜만 +9 가산
-      | select($kst_date == $d)
-      | . + {epoch: $utc}'   # 출력 시각용 raw UTC epoch 보존 (awk 에 그대로 넘김)
+# 이 스킬 디렉토리 자동 탐색 — 플러그인 캐시/로컬 스킬 어디에 설치됐든 동작.
+SKILL_DIR="$(dirname "$(find "$HOME/.claude/plugins/cache" "$HOME/.claude/skills" \
+  -name collect.sh -path '*worklog-today*' 2>/dev/null | head -1)")"
+DATE="2026-05-26"                      # 대상일(KST). 생략하면 오늘.
+"$SKILL_DIR/collect.sh" "$DATE" > today.jsonl
+#  - 자동으로 ~/.claude/projects (+ WSL 이면 Windows 측) 전 프로젝트를 훑어
+#    그 날짜(KST) 라인만 정규화해 epoch 오름차순으로 낸다.
+#  - 옵션: --tz <IANA>(기본 Asia/Seoul), --root <DIR>(루트 추가, 반복 가능)
 ```
+이후 모든 분석/시각화는 `today.jsonl` 만 소비한다. `timeline.sh`·`jira_worklog.sh` 도 같은 `$SKILL_DIR` 에 있다.
 
 ### 2-1. 시각 변환 규칙 (⚠ +9h 는 단 한 번)
-`ts` 는 UTC. KST 표기 시 **+9h 가 두 번 적용되는 이중변환** 을 조심한다.
-(실제 발생: 오전 09:53 작업이 저녁 18:53 으로 잘못 표기됨 — jq 에서 +9 한 epoch 을 awk strftime 에 넘겨 awk 가 로컬 TZ 로 +9 를 또 적용.)
+`collect.sh` 는 `epoch`(raw UTC 초)와 `ts`(UTC ISO)를 낸다. KST 표기 시 **+9h 이중적용**을 조심한다.
+(실제 발생: 오전 09:53 작업이 저녁 18:53 으로 잘못 표기됨 — +9 한 값을 awk strftime 에 또 넘겨 +9 재적용.)
 
-- `jq` 의 `fromdateiso8601` 은 항상 **UTC epoch** 을 낸다. `jq` 의 `strftime` 도 **UTC 고정**.
-- `awk` / `date` 의 `strftime` 은 **로컬 TZ** (이 환경 = KST=+9) 를 적용한다.
-- 그래서 시각 포맷은 둘 중 한 방식으로만 **일관**되게:
-  - **awk 로 출력 (권장)**: jq 는 `epoch`(raw UTC) 만 내보내고 awk 에 그 raw epoch 을 넘긴다. `export TZ=Asia/Seoul` 만 해두면 awk strftime 이 KST 로 찍는다 → +9 산술을 **직접 쓰지 않는다**.
-  - **jq 로 출력**: jq 안에서 `($utc + 9*3600) | strftime(...)`. 이 값은 awk/date 로 **다시 포맷하지 않는다**.
-- 🚫 금지: `jq` 에서 `+9*3600` 한 값을 `awk`/`date` strftime 에 넘기기 (← 이중변환 원인).
+- 표준(권장): jq 는 `epoch`(raw UTC)만 내보내고, `export TZ=Asia/Seoul` 상태의 `awk strftime` 으로 포맷한다 → +9 산술을 **직접 쓰지 않는다**.
+- 🚫 금지: `epoch + 9*3600` 한 값을 다시 `awk`/`date` strftime 에 넘기기.
 
 출력 표준 (raw epoch 보존 → TZ=Asia/Seoul awk):
 ```bash
 export TZ=Asia/Seoul
-#  ⚠ prompt/subject 본문의 개행은 awk -F'\t' 레코드를 쪼개 "epoch 빈 줄"(09:00 으로 보임)을
-#    만든다 → jq 단계에서 gsub("\n";" ") 로 한 줄로 평탄화한 뒤 awk 에 넘긴다.
+#  ⚠ prompt/subject 의 개행은 awk -F'\t' 레코드를 쪼갠다 → jq 에서 gsub 로 한 줄 평탄화.
 jq -r 'select(.event=="prompt" or .event=="commit")
-       | "\(.epoch)\t\(.event)\t\((.subject // .prompt // "") | gsub("\\s+"; " "))"' "$F" \
+       | "\(.epoch)\t\(.event)\t\((.subject // .prompt // "") | gsub("\\s+"; " "))"' today.jsonl \
   | sort -n | awk -F'\t' '{ printf "%s  %-8s %s\n", strftime("%H:%M:%S",$1), $2, $3 }'
 ```
-검증: 출력 첫 시각이 그 날의 상식적 업무시간대(예: 오전 9~10시)와 맞는지 한 번 눈으로 확인한다. 12시간 어긋나면 이중변환을 의심.
+검증: 출력 첫 시각이 상식적 업무시간대(예: 오전 9~10시)와 맞는지 확인. 12시간 어긋나면 이중변환 의심.
 
 ### 3. 섹션별 분석
-모은 라인을 다음 4개 묶음으로 분류:
-- **활동 시간대**: `session_start` / `session_stop` 페어 + 마지막 prompt ts 로 활동 구간 산출 (세션이 stop 없이 끊긴 경우 마지막 prompt 시각을 종료로 간주).
-- **프로젝트별 통계**: `cwd` basename 으로 그룹. 각 그룹의 prompt 수, commit 수, 첫/마지막 활동 시각.
+모은 라인을 다음 묶음으로 분류:
+- **활동 시간대**: `session_start`/`session_stop`(세션파일별 min/max) 구간의 합집합. 동시 진행 세션은 겹치는 구간을 한 번만 카운트.
+- **프로젝트별 통계**: `cwd` basename 으로 그룹(워크트리는 별도 slug 로 보일 수 있음). 각 그룹의 prompt 수, commit 수, 첫/마지막 활동 시각.
 - **커밋 목록**: `event=="commit"` 라인. SHA(short) + branch + subject 한 줄.
-- **prompt 주제 요약**: Claude 가 prompt 본문들을 읽고 5-10 줄로 의미 단위 요약 (질문/검토/디버깅/문서작성/etc. 분류). 잡담/오타/한 글자 입력은 제외.
-- **하루 타임라인(30분 슬롯)**: `timeline.sh` 로 슬롯별 밀도 막대(`█`)와 커밋 마커(`✦`)를 결정적으로 렌더한 뒤, Claude 가 각 행 오른쪽에 그 시간대 **주제 라벨 한 줄**을 채운다. `task-notification`·빈 prompt 는 제외된다.
+- **prompt 주제 요약**: Claude 가 prompt 본문들을 읽고 5-10 줄로 의미 단위 요약(질문/검토/디버깅/문서작성/etc.). 잡담/오타/한 글자 입력·슬래시 명령 노이즈는 제외.
+- **하루 타임라인(30분 슬롯)**: `timeline.sh` 로 슬롯별 밀도 막대(`█`)와 커밋 마커(`✦`)를 결정적으로 렌더한 뒤, Claude 가 각 행 오른쪽에 그 시간대 **주제 라벨 한 줄**을 채운다.
   ```bash
-  cat today.jsonl | "$HOME/.claude/skills/worklog-today/timeline.sh"   # today.jsonl = 절차 2 수집 결과
+  cat today.jsonl | "$SKILL_DIR/timeline.sh"
   ```
 
 ### 4. 작업 주제 그룹화
@@ -167,7 +131,7 @@ jira issue list --history \
 #### 5.3 dry-run 가안 미리보기
 추정 매핑을 TSV 로 만들어 `jira_worklog.sh` dry-run (30분 반올림·STARTED 포함):
 ```bash
-SH="$HOME/.claude/skills/worklog-today/jira_worklog.sh"
+SH="$SKILL_DIR/jira_worklog.sh"   # 절차 2 에서 구한 $SKILL_DIR
 # 추정 매핑 → TSV (KEY \t TIME \t STARTED \t COMMENT). 확신 없으면 "-".
 printf '%s\n' \
   $'PROJ-42\t1h 36m\t2026-05-27 09:53:00\tcal 실패마커 6/2/1 게이트 전환 + cal 콘솔 명령' \
@@ -177,10 +141,12 @@ printf '%s\n' \
 TSV 컬럼: `KEY`(추정 이슈, 미정은 `-`) · `TIME_SPENT`(원본 그대로 넘기면 스크립트가 30분 nearest 반올림) · `STARTED`(첫 활동 KST `YYYY-MM-DD HH:MM:00`) · `COMMENT`(한 줄).
 옵션: `--apply` · `--tz`(기본 Asia/Seoul) · `--project` · `--round`(기본 30) · `--overlap-ok`(겹침회피 끔) · `--lunch <범위>`(기본 `12:00-13:00`, `none`=끔).
 
+> 여러 줄 코멘트가 필요하면 이 스크립트(TSV 한 줄=1 레코드)를 우회해 `jira issue worklog add ... --comment $'1줄\n2줄'` 로 직접 호출한다.
+
 **시작시각 처리** (스크립트가 자동):
 - `TIME_SPENT` 와 마찬가지로 `STARTED` 도 30분 그리드로 nearest 반올림 (예: 09:53 → 10:00).
 - **겹침회피(기본 켬)**: 같은 날 내가 이미 단 워크로그 구간 **+ 점심시간(기본 12:00–13:00)** 을 피해, 새 워크로그가 겹치면 빈 슬롯(다음 그리드)으로 STARTED 를 밀어낸다. 연속 입력 행끼리도 누적해 안 겹치게 한다. `--overlap-ok` 로 겹침회피를, `--lunch none` 으로 점심회피를 끈다.
-  - jira-cli 에 worklog 조회가 없어 **REST API** 사용: config 의 `server`·`login` + `JIRA_API_TOKEN` env 로 `GET /rest/api/3/issue/{key}/worklog` 조회. 자격이 없으면 회피 없이 진행.
+  - jira-cli 에 worklog 조회가 없어 워크로그 조회는 **REST API** 사용: config 의 `server`·`login` + `JIRA_API_TOKEN` env. ⚠ 구 `/rest/api/3/search` 는 **삭제(HTTP 410)** — 이슈 검색은 `jira issue list --jql` (CLI) 로, 각 이슈 워크로그는 `GET /rest/api/3/issue/{key}/worklog` 로 조회. 자격이 없으면 회피 없이 진행.
   - 조회 범위: `worklogAuthor = currentUser() AND worklogDate = "<그 날>"` 로 내 당일 워크로그가 있는 이슈를 찾아 각 이슈의 내 워크로그 구간을 모은다.
   - 예: 오전(09:30–12:00)이 이미 차 있으면 1h30m 워크로그는 점심을 건너뛰어 13:00–14:30 으로 배치된다.
 
@@ -248,6 +214,8 @@ TSV 컬럼: `KEY`(추정 이슈, 미정은 `-`) · `TIME_SPENT`(원본 그대로
 
 ## 주의 사항
 - prompt 본문이 길거나 민감 정보(토큰/비번)가 보이면 출력에 그대로 노출하지 말고 "{생략}" 처리.
-- session_id 가 같으면 같은 Claude Code 세션. 활동 시간대 산출 시 세션 단위로 묶기.
-- `event=="prompt"` 가 0인데 `session_start` 만 있는 세션은 활동 시간 0 으로 계산하지 말고 "세션 열림만" 으로 별도 표시.
-- 양쪽 env 동시 활동인 경우 활동 시간대를 합집합으로 계산 (겹치는 구간은 한 번만 카운트).
+- `session_id` 가 같으면 같은 Claude Code 세션. 활동 시간대 산출 시 세션 단위로 묶기.
+- 트랜스크립트는 **전 프로젝트**를 포함한다(워크트리는 별도 cwd slug). 특정 프로젝트만 원하면 결과를 cwd 로 필터.
+- 서브에이전트(`isSidechain`) 입력은 prompt 에서 제외된다. 슬래시 명령(`/release` 등)은 prompt 로 복원되어 포함된다.
+- 커밋은 **로컬 `git commit` 만** 캡처된다 — GitHub 측 squash/rebase 머지 SHA 는 누락될 수 있다(PR 로 확인). 폐기성 로컬 커밋도 잡힐 수 있으니 요약 시 한 번 걸러낸다.
+- `collect.sh` 가 한 줄도 못 내면(그 날 세션 없음/트랜스크립트 경로 부재) "해당 날짜 활동 없음"으로 안내.
