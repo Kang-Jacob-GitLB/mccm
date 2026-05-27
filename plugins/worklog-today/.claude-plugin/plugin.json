@@ -1,0 +1,47 @@
+{
+  "name": "worklog-today",
+  "version": "1.0.0",
+  "description": "대화내역 기반 일일 워크로그 — 활동 로깅 hook + 30분 슬롯 타임라인 시각화 + jira CLI 워크로그 입력(dry-run/추정매핑/30분 반올림/겹침·점심 회피)",
+  "author": {
+    "name": "jacob",
+    "email": "jacob@litbig.com"
+  },
+  "license": "MIT",
+  "keywords": ["worklog", "jira", "timeline", "hooks", "productivity", "litbig"],
+  "requirements": {
+    "note": "외부 도구 의존: node(hook 로깅·필수), jq(JSON 파싱·필수), jira(ankitpokhrel/jira-cli, worklog 입력 시), curl+base64(겹침회피 REST 조회 시). jira 입력은 `jira init`(server/login) + JIRA_API_TOKEN env 선행 필요.",
+    "tools": ["node", "jq", "jira", "curl", "base64"]
+  },
+  "skills": "./skills/",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/log-session.js" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/log-session.js" }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/log-prompt.js" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/log-commit.js" }
+        ]
+      }
+    ]
+  }
+}
