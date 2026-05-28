@@ -27,9 +27,10 @@ Claude Code 는 모든 세션을 다음 위치에 JSONL 로 기록한다 — 이
 |---|---|---|
 | **Linux / WSL** | `~/.claude/projects/<cwd-slug>/<session-id>.jsonl` | cwd 경로별 디렉토리(워크트리 포함) |
 | **macOS** | `~/.claude/projects/...` | 동일 |
-| **Windows** | `C:\Users\<user>\.claude\projects\...` | WSL 에선 `/mnt/c/Users/<user>/.claude/projects/` 로 접근 가능 |
+| **Windows** | `C:\Users\<user>\.claude\projects\...` | WSL 에선 `/mnt/c/Users/<user>/.claude/projects/` 로, Git Bash/MSYS 에선 `//wsl.localhost/<distro>/home/<user>/.claude/projects` 로 상호 접근 |
 
 - **WSL 에서 실행하면 자동으로 양쪽**(WSL `~/.claude/projects` + Windows `/mnt/c/Users/*/.claude/projects`)을 읽어 머신 병합한다. env 는 경로로 태깅(`wsl`/`windows`/`macos`/`linux`).
+- **Windows(Git Bash/MSYS) 에서 실행해도 자동으로 양쪽**을 읽는다 — `wsl.exe -l -q` 로 설치된 배포판을 조회해 각 배포판의 `//wsl.localhost/<distro>/home/*/.claude/projects` 도 함께 스캔한다. `wsl.exe` 가 없거나 배포판이 없으면 조용히 Windows 단독으로 진행.
 - 트랜스크립트 user 라인엔 `timestamp`(UTC ISO)·`cwd`·`gitBranch`·`sessionId`·`message`(prompt)·`isSidechain` 등이 있어 워크로그에 필요한 정보가 모두 들어있다.
 - 수집·정규화는 `collect.sh` 가 담당한다. 출력은 과거 hook JSONL 과 **동일 스키마**라 `timeline.sh` 와 하위 분석은 그대로 재사용된다:
   ```json

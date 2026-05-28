@@ -3,7 +3,8 @@
 #
 # hook 없이 동작한다. Claude Code 가 직접 남기는 세션 트랜스크립트
 #   ~/.claude/projects/<cwd-slug>/<session-id>.jsonl
-# (WSL 이면 Windows 측 /mnt/c/Users/*/.claude/projects/... 도) 를 읽어,
+# (WSL 이면 Windows 측 /mnt/c/Users/*/.claude/projects/... 도,
+#  Windows(Git Bash/MSYS) 이면 WSL 측 //wsl.localhost/<distro>/home/*/.claude/projects 도) 를 읽어,
 # 기존 hook JSONL 과 **동일한 스키마**의 라인을 stdout 으로 낸다:
 #   {ts, env, event(prompt|commit|session_start|session_stop), session_id,
 #    cwd, branch, prompt?|sha?+subject?, epoch}
@@ -48,8 +49,9 @@ END=$(( START + 86400 ))
 # 현재 머신 env 판별
 THIS_ENV="linux"
 case "$(uname -s)" in
-  Darwin) THIS_ENV="macos" ;;
-  Linux)  grep -qi microsoft /proc/version 2>/dev/null && THIS_ENV="wsl" ;;
+  Darwin)               THIS_ENV="macos" ;;
+  Linux)                grep -qi microsoft /proc/version 2>/dev/null && THIS_ENV="wsl" ;;
+  MINGW*|MSYS*|CYGWIN*) THIS_ENV="windows" ;;
 esac
 
 # 트랜스크립트 루트 수집: "<env>\t<dir>" 줄
@@ -59,6 +61,14 @@ roots_tsv() {
     for d in /mnt/c/Users/*/.claude/projects; do
       [ -d "$d" ] && printf '%s\t%s\n' "windows" "$d"
     done
+  elif [ "$THIS_ENV" = "windows" ] && command -v wsl.exe >/dev/null 2>&1; then
+    # WSL 배포판 자동 탐색 — wsl.exe -l -q 출력은 UTF-16LE(+ NUL/CR) 이라 정리.
+    while IFS= read -r distro; do
+      [ -n "$distro" ] || continue
+      for d in "//wsl.localhost/${distro}/home"/*/.claude/projects; do
+        [ -d "$d" ] && printf '%s\t%s\n' "wsl" "$d"
+      done
+    done < <(wsl.exe -l -q 2>/dev/null | tr -d '\000\r' | sed -e 's/[[:space:]]*$//' -e '/^$/d')
   fi
   for r in ${EXTRA_ROOTS+"${EXTRA_ROOTS[@]}"}; do
     [ -d "$r" ] && printf '%s\t%s\n' "$THIS_ENV" "$r"
