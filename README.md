@@ -45,6 +45,16 @@ env 플러그인은 `mccm.json` 파일 하나에 환경 전체를 선언적으�
 | [md-to-pdf](plugins/dev/skills/md-to-pdf/) | Markdown → PDF 변환 — GitHub 웹 스타일 렌더링 |
 | [md-to-gdoc](plugins/dev/skills/md-to-gdoc/) | Markdown → Google Docs 변환 — GitHub 스타일 서식, gws CLI 사용 |
 
+### worklog-today — 일일 워크로그
+
+Claude Code가 세션마다 남기는 트랜스크립트(`~/.claude/projects/<cwd-slug>/<session-id>.jsonl`)를 직접 파싱해 하루치 작업을 정리한다. 별도 hook 설치가 필요 없어 새 머신에서도 셋업 0으로 동작한다. 하루를 30분 슬롯 타임라인으로 시각화하고, 선택적으로 `jira` CLI로 워크로그 입력 후보를 추정·dry-run 미리보기·실제 입력까지 반자동화한다(30분 반올림, 같은 날 기존 워크로그·점심시간 회피).
+
+| 스킬 | 설명 |
+|------|------|
+| [worklog-today](plugins/worklog-today/skills/worklog-today/) | 오늘(또는 지정일) 트랜스크립트 → 시간대·프로젝트·커밋·prompt 주제 요약 + 30분 슬롯 타임라인 + Jira 워크로그 dry-run/apply |
+
+**사전 요구사항:** `jq`(필수). Jira 워크로그 입력 시 [`jira` CLI](https://github.com/ankitpokhrel/jira-cli)(`jira init` + `JIRA_API_TOKEN` env), 겹침회피 REST 조회 시 `curl`+`base64`.
+
 ## 설치 방법
 
 ```bash
@@ -100,20 +110,29 @@ mccm/
     │       │   └── SKILL.md
     │       └── upload/
     │           └── SKILL.md
-    └── dev/
+    ├── dev/
+    │   ├── .claude-plugin/
+    │   │   └── plugin.json
+    │   └── skills/
+    │       ├── commit/
+    │       │   └── SKILL.md
+    │       ├── pr/
+    │       │   └── SKILL.md
+    │       ├── cleanup/
+    │       │   └── SKILL.md
+    │       ├── md-to-pdf/
+    │       │   └── SKILL.md
+    │       └── md-to-gdoc/
+    │           └── SKILL.md
+    └── worklog-today/
         ├── .claude-plugin/
         │   └── plugin.json
         └── skills/
-            ├── commit/
-            │   └── SKILL.md
-            ├── pr/
-            │   └── SKILL.md
-            ├── cleanup/
-            │   └── SKILL.md
-            ├── md-to-pdf/
-            │   └── SKILL.md
-            └── md-to-gdoc/
-                └── SKILL.md
+            └── worklog-today/
+                ├── SKILL.md
+                ├── collect.sh
+                ├── timeline.sh
+                └── jira_worklog.sh
 ```
 
 ## 새 스킬 추가 방법
