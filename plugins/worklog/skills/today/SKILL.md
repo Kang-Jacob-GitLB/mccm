@@ -193,7 +193,7 @@ jq -r '.items[]?
 **기본은 요약 출력까지만.** 입력/등록/dry-run 을 요청할 때만 진입.
 입력 단위 = **태스크(이슈) 1건 = 워크로그 1건 = 소요시간(h) + 시간 비례 멀티라인 코멘트**.
 
-> **코멘트 작성 규칙(중요)**: 코멘트는 한 줄로 압축하지 말고 **소요시간에 비례해 여러 라인(작업 항목별 불릿)으로** 작성한다. 기준은 **시간당 ~1줄**(예: 3h30m → 약 4줄, 1h30m → 약 2줄). 멀티라인이라 `jira_worklog.sh`(TSV 한 줄=1 레코드)로는 표현이 안 되므로, **실제 입력은 스크립트를 우회해** `jira issue worklog add <KEY> <TIME> --started '<KST>' --timezone 'Asia/Seoul' --no-input --comment $'1줄\n2줄\n…'` 로 직접 호출한다(STARTED·30분 반올림·겹침회피는 5.3 dry-run 으로 산출한 값을 그대로 사용). dry-run 가안 표·간트의 코멘트 칸에도 라인 수를 함께 표기한다.
+> **코멘트 작성 규칙(중요)**: 코멘트는 한 줄로 압축하지 말고 **소요시간에 비례해 여러 라인(작업 항목별 불릿)으로** 작성한다. 기준은 **시간당 ~1줄**(예: 3h30m → 약 4줄, 1h30m → 약 2줄). 멀티라인이라 `jira_worklog.sh`(TSV 한 줄=1 레코드)로는 표현이 안 되므로, **실제 입력은 스크립트를 우회해** `jira issue worklog add <KEY> <TIME> --started '<KST>' --timezone 'Asia/Seoul' --no-input --comment $'1줄\n2줄\n…'` 로 직접 호출한다(STARTED·30분 반올림·겹침회피는 5.3 dry-run 으로 산출한 값을 그대로 사용). **⚠ tzdata 부재 환경(Windows Git Bash/MSYS)에선 jira-cli 가 `--timezone 'Asia/Seoul'` 을 거부**한다(`timezone should be a valid IANA timezone`) — 그때는 `--timezone` 을 빼고 `--started` 를 **오프셋 포함 형식** `'2026-05-29T14:30:00.000+0900'` 으로 넘긴다(`jira_worklog.sh --apply` 는 이를 자동 처리). dry-run 가안 표·간트의 코멘트 칸에도 라인 수를 함께 표기한다.
 
 > **dry-run 의 목적은 두 가지**: (a) 등록될 `jira issue worklog add` 명령 미리보기, (b) **내 Jira 이슈 중 오늘 작업과 맞을 이슈를 추정해 워크로그 가안(초안)을 제시** → 사용자가 검토·수정 후 확정. 브랜치에 키가 없으므로 (b) 가 핵심이다 — 매번 빈칸을 묻지 말고 **먼저 추정안을 보여주고** 사용자는 고치기만 한다.
 
@@ -204,14 +204,17 @@ jq -r '.items[]?
 오늘 작업과 매칭할 후보를 가져온다 (담당 + 최근 접근). **워크로그 대상은 활성(미완료) 이슈가 원칙**이므로 미완료를 먼저, 완료는 참고용으로 분리해 가져온다:
 ```bash
 ME=$(jira me)
+# ⚠ config 의 default project 가 빈 문자열로 읽히는 환경이 있다(조회 시 `✗ No result found ... in project ""`).
+#    그때는 -p <PROJECT> 를 명시한다. 프로젝트 키는 config 에서 확인: grep -i project ~/.config/.jira/.config.yml
+P="WDSW2D2510"   # ← 본인 프로젝트 키로 교체(config 가 정상이면 -p 생략 가능)
 # ① 워크로그 1순위 후보 — 내 담당 '미완료'(statusCategory != Done)
-jira issue list -a "$ME" -q "statusCategory != Done" --order-by updated --reverse \
+jira issue list -p "$P" -a "$ME" -q "statusCategory != Done" --order-by updated --reverse \
   --plain --no-headers --columns KEY,STATUS,SUMMARY --paginate 0:20
 # ② 최근 접근 이슈로 보강(상태 무관)
-jira issue list --history \
+jira issue list -p "$P" --history \
   --plain --no-headers --columns KEY,STATUS,SUMMARY --paginate 0:20
 # ③ (참고용) 완료 이슈 — 매칭 근거 확인에만 쓰고 워크로그 대상으로는 기본 제외(5.2 규칙)
-jira issue list -a "$ME" -q "statusCategory = Done" --order-by updated --reverse \
+jira issue list -p "$P" -a "$ME" -q "statusCategory = Done" --order-by updated --reverse \
   --plain --no-headers --columns KEY,STATUS,SUMMARY --paginate 0:20
 ```
 > `STATUS` 컬럼을 반드시 함께 받아 각 후보의 완료 여부를 안다(5.2 에서 완료 티켓을 거른다).
@@ -225,6 +228,7 @@ jira issue list -a "$ME" -q "statusCategory = Done" --order-by updated --reverse
   - 키워드가 완료 티켓과 가장 잘 맞더라도, **활성(미완료) 이슈 중 차선 후보를 우선 채택**한다.
   - 활성 후보가 없으면 그 행은 `-`(SKIP) 로 두고 **`완료 티켓 OOО-NN 와만 매칭됨 — 확인요망`** 을 근거에 명시한다. (그 작업이 실제로 종료 티켓의 후속이면 사용자가 티켓 재오픈/신규 생성/다른 활성 티켓 지정 중 택한다.)
   - 가안 표의 `확신` 칸에 완료 티켓이면 반드시 `완료(워크로그 부적절)` 를 표기해 사용자가 한눈에 알게 한다.
+- 🚫 **상위 에픽이 'Backlog'(미진행) 상태인 이슈에는 워크로그를 달지 말 것.** 일부 Jira 자동화는 "에픽이 '진행 중'일 때만 워크로그 허용" 규칙을 두어, 미진행 에픽 하위 이슈에 단 워크로그를 **자동 삭제**한다(이슈 코멘트에 `워크로그가 자동 삭제되었습니다` 이력으로 남음). 활성(미완료) 이슈라도 잡무성 이슈(예: 연간 지원 티켓)에 달기 전 `jira issue view <KEY>` 로 상위 에픽 상태를 확인하고, Backlog면 SKIP 또는 다른 활성 이슈를 택한다.
 
 추정 매핑 표를 **먼저** 보여준다 (가안):
 | 주제 그룹 | 추정 이슈 | 근거 | 확신 | 시간 | 코멘트(시간 비례 라인, ~1줄/h) |
@@ -247,7 +251,7 @@ printf '%s\n' \
 TSV 컬럼: `KEY`(추정 이슈, 미정은 `-`) · `TIME_SPENT`(원본 그대로 넘기면 스크립트가 30분 nearest 반올림) · `STARTED`(첫 활동 KST `YYYY-MM-DD HH:MM:00`) · `COMMENT`(dry-run 표시용 1줄 요약 — 실제 등록은 아래 멀티라인 규칙을 따른다).
 옵션: `--apply` · `--tz`(기본 Asia/Seoul) · `--project` · `--round`(기본 30) · `--overlap-ok`(겹침회피 끔) · `--lunch <범위>`(기본 `12:00-13:00`, `none`=끔).
 
-> **멀티라인 코멘트 = 기본값**(5 입력 단위의 코멘트 규칙). `jira_worklog.sh` 는 TSV 한 줄=1 레코드라 멀티라인을 표현 못 하므로, **dry-run 으로는 STARTED·30분 반올림·겹침회피 값만 산출**하고(COMMENT 는 1줄 요약), **`--apply` 대신 그 산출값으로 `jira issue worklog add <KEY> <TIME> --started '<KST>' --timezone 'Asia/Seoul' --no-input --comment $'1줄\n2줄\n…'` 를 이슈마다 직접 호출**한다. 라인 수는 소요시간당 ~1줄(예: 2h30m → 3줄). 사용자 확인 후 호출하며, 확인 없는 입력은 금지.
+> **멀티라인 코멘트 = 기본값**(5 입력 단위의 코멘트 규칙). `jira_worklog.sh` 는 TSV 한 줄=1 레코드라 멀티라인을 표현 못 하므로, **dry-run 으로는 STARTED·30분 반올림·겹침회피 값만 산출**하고(COMMENT 는 1줄 요약), **`--apply` 대신 그 산출값으로 `jira issue worklog add <KEY> <TIME> --started '<KST>' --timezone 'Asia/Seoul' --no-input --comment $'1줄\n2줄\n…'` 를 이슈마다 직접 호출**한다. 라인 수는 소요시간당 ~1줄(예: 2h30m → 3줄). 사용자 확인 후 호출하며, 확인 없는 입력은 금지. **tzdata 부재 환경에선 `--timezone 'Asia/Seoul'` 대신 `--started '…+0900'`(오프셋 부착) 형식을 쓴다**(5 코멘트 규칙의 ⚠ 주의 참조). ⚠ dry-run(`jira_worklog.sh`)은 통과해도 이 직접 호출(apply)만 timezone 오류로 실패하는 함정이 있으니, 실패 시 즉시 오프셋 형식으로 재시도한다.
 
 **시작시각 처리** (스크립트가 자동):
 - `TIME_SPENT` 와 마찬가지로 `STARTED` 도 30분 그리드로 nearest 반올림 (예: 09:53 → 10:00).
