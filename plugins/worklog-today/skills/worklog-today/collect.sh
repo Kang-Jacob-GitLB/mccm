@@ -41,9 +41,14 @@ while [ $# -gt 0 ]; do
 done
 command -v jq >/dev/null 2>&1 || { echo "ERROR: jq 없음" >&2; exit 1; }
 
-[ -n "$DATE" ] || DATE="$(TZ="$TZ_IANA" date +%F)"
+# 공통 TZ 유틸 로드 → tzdata 부재(Windows Git Bash 등) 환경에서도 날짜 경계가
+# UTC 로 9시간 어긋나지 않게 한다.
+. "$(dirname "${BASH_SOURCE[0]}")/_tz.sh"
+tz_setup "$TZ_IANA"
+
+[ -n "$DATE" ] || DATE="$(tz_today)"
 # 대상일(로컬 TZ) 자정 ~ 익일 자정 → UTC epoch 경계
-START=$(TZ="$TZ_IANA" date -d "$DATE 00:00:00" +%s)
+START=$(tz_midnight "$DATE")
 END=$(( START + 86400 ))
 
 # 현재 머신 env 판별
@@ -144,11 +149,12 @@ TMP="$(mktemp)"; trap 'rm -f "$TMP"' EXIT
 
 while IFS=$'\t' read -r env root; do
   [ -n "$root" ] || continue
-  # 대상일 자정 이후 수정된 파일만 (그 이전 파일엔 그 날 라인이 있을 수 없음)
+  # 대상일 자정(로컬) 이후 수정된 파일만 (그 이전 파일엔 그 날 라인이 있을 수 없음).
+  # @epoch 로 넘겨 tzdata 부재 환경에서도 경계가 어긋나지 않게 한다.
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     jq -c -s --argjson start "$START" --argjson end "$END" --arg env "$env" "$JQPROG" "$f" 2>/dev/null >> "$TMP" || true
-  done < <(find "$root" -type f -name '*.jsonl' -newermt "$DATE 00:00:00" 2>/dev/null)
+  done < <(find "$root" -type f -name '*.jsonl' -newermt "@$START" 2>/dev/null)
 done < <(roots_tsv)
 
 # commit 은 sha 로 dedup(최초 epoch 유지), 전체 epoch 오름차순 출력.

@@ -23,15 +23,19 @@ while [ $# -gt 0 ]; do
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
 done
-export TZ="$TZ_IANA"
+# 공통 TZ 유틸 로드 → tzdata 부재(Windows Git Bash 등) 환경에서도 올바른 로컬 시각.
+. "$(dirname "${BASH_SOURCE[0]}")/_tz.sh"
+tz_setup "$TZ_IANA"
 
 command -v jq >/dev/null 2>&1 || { echo "ERROR: jq 없음" >&2; exit 1; }
 
 # task-notification / 빈 prompt 는 제외. commit 은 모두 포함.
 jq -r 'select(.event=="commit" or (.event=="prompt" and ((.prompt//"")|test("task-notification")|not) and ((.prompt//"")|length>0)))
        | "\(.epoch)\t\(.event)"' \
-  | awk -F'\t' -v W="$WIDTH" '
-      { slot=int($1/1800)*1800
+  | awk -F'\t' -v W="$WIDTH" -v OFF="$TZ_OFF" '
+      # $1=raw UTC epoch. OFF 더해 로컬 epoch 로 만든 뒤 슬롯·표기에 사용
+      # (native 모드는 OFF=0 + TZ=IANA, offset 모드는 OFF=오프셋 + TZ=UTC → 양쪽 동일).
+      { e=$1+OFF; slot=int(e/1800)*1800
         if($2=="commit") c[slot]++; else p[slot]++
         all[slot]=1; if(p[slot]>mx) mx=p[slot] }
       END{

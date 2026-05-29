@@ -57,7 +57,10 @@ if ! command -v jira >/dev/null 2>&1; then
   exit 1
 fi
 
-export TZ="$TZ_IANA"   # STARTED 반올림/파싱(date)을 워크로그 timezone 으로 해석
+# 공통 TZ 유틸 로드 → STARTED 파싱/반올림/겹침회피를 워크로그 timezone 으로 해석.
+# tzdata 부재(Windows Git Bash 등) 환경에서도 9시간 어긋나지 않게 l2e/e2l 로 변환.
+. "$(dirname "${BASH_SOURCE[0]}")/_tz.sh"
+tz_setup "$TZ_IANA"
 
 # 작은따옴표 래핑(실행 안전 + 사람이 읽기 좋게). 내부 ' 는 '\'' 로 escape.
 sq() { local s=${1//\'/\'\\\'\'}; printf "'%s'" "$s"; }
@@ -99,10 +102,11 @@ min_to_jira() {
 round_started() {
   local s="$1"
   [ "$ROUND" -le 0 ] && { echo "$s"; return; }
-  local e; e=$(date -d "$s" +%s 2>/dev/null) || { echo "$s"; return; }
+  local e; e=$(l2e "$s" 2>/dev/null) || { echo "$s"; return; }
+  [ -n "$e" ] || { echo "$s"; return; }
   local sec=$((ROUND*60))
   local r=$(( (e + sec/2) / sec * sec ))
-  date -d "@$r" +"%Y-%m-%d %H:%M:00"
+  e2l "$r" "%Y-%m-%d %H:%M:00"
 }
 
 # ── 겹침 회피 ───────────────────────────────────────────────
@@ -136,13 +140,14 @@ ensure_busy() {  # $1=YYYY-MM-DD ; BUSY[] 채움 (날짜 바뀌면 재조회)
   local st sec e lse lee
   while IFS=$'\t' read -r st sec; do
     [ -n "$st" ] || continue
-    e=$(date -d "$st" +%s 2>/dev/null) || continue
+    # REST 의 started 는 offset 포함 ISO8601(절대시각) → -u 로 그대로 epoch 화.
+    e=$(date -u -d "$st" +%s 2>/dev/null) || continue
     BUSY+=("$e:$((e+sec))")
   done < <(load_busy "$1")
-  # 점심시간도 회피 대상에 추가 (그 날짜로 epoch 구간 생성).
+  # 점심시간도 회피 대상에 추가 (offset 없는 로컬 시각 → l2e 로 변환).
   if [ -n "$LUNCH" ]; then
-    lse=$(date -d "$1 ${LUNCH%-*}" +%s 2>/dev/null) || lse=""
-    lee=$(date -d "$1 ${LUNCH#*-}" +%s 2>/dev/null) || lee=""
+    lse=$(l2e "$1 ${LUNCH%-*}:00" 2>/dev/null) || lse=""
+    lee=$(l2e "$1 ${LUNCH#*-}:00" 2>/dev/null) || lee=""
     [ -n "$lse" ] && [ -n "$lee" ] && BUSY+=("$lse:$lee")
   fi
 }
@@ -190,13 +195,13 @@ while IFS=$'\t' read -r KEY TIME STARTED COMMENT || [ -n "${KEY:-}" ]; do
   [ "$STARTED" != "$orig_started" ] && rnd_note="${rnd_note}  (시작 ${orig_started##* } → ${STARTED##* })"
 
   # 같은 날 내 기존 워크로그와 겹치지 않게 빈 슬롯으로 배치.
-  if [ "$NOOVL" -eq 1 ]; then
+  # STARTED 파싱 실패 시(l2e rc!=0) 겹침회피를 건너뛰어 원본 STARTED 를 그대로 둔다.
+  if [ "$NOOVL" -eq 1 ] && s_epoch=$(l2e "$STARTED"); then
     ensure_busy "${STARTED%% *}"
-    s_epoch=$(date -d "$STARTED" +%s)
     new_epoch=$(place_no_overlap "$s_epoch" "$((rnd_min*60))")
     if [ "$new_epoch" -ne "$s_epoch" ]; then
       moved_from="${STARTED##* }"
-      STARTED=$(date -d "@$new_epoch" +"%Y-%m-%d %H:%M:00")
+      STARTED=$(e2l "$new_epoch" "%Y-%m-%d %H:%M:00")
       rnd_note="${rnd_note}  (겹침회피 ${moved_from} → ${STARTED##* })"
     fi
     BUSY+=("$new_epoch:$((new_epoch + rnd_min*60))")   # 이후 행과도 안 겹치게 누적

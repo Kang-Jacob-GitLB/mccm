@@ -130,6 +130,7 @@ mccm/
         └── skills/
             └── worklog-today/
                 ├── SKILL.md
+                ├── _tz.sh
                 ├── collect.sh
                 ├── timeline.sh
                 └── jira_worklog.sh

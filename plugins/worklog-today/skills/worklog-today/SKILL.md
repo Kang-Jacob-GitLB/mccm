@@ -109,6 +109,8 @@ DATE="2026-05-26"                      # 대상일(KST). 생략하면 오늘.
 **대전제: 트랜스크립트의 모든 시각은 UTC 다.** `collect.sh` 의 `ts` 는 UTC ISO(끝에 `Z`), `epoch` 은 raw UTC 초다. 화면 표기는 KST(`+09:00`)이므로 **UTC→KST 변환을 정확히 한 번만** 적용한다. 안 하면 9시간 뒤(UTC 그대로), 두 번 하면 9시간 앞으로 어긋난다.
 (실제 발생 ①: 오전 09:53 작업이 저녁 18:53 으로 — +9 한 값을 awk strftime 에 또 넘겨 +9 재적용. ②: 오전 09:33 작업이 00:33 으로 — `TZ=Asia/Seoul` 가 안 먹혀 UTC 그대로 표기, 아래 MSYS 함정.)
 
+> ✅ **스크립트는 이미 자동 처리한다.** `collect.sh`·`timeline.sh`·`jira_worklog.sh` 는 공통 `_tz.sh` 를 source 해 환경을 런타임 감지한다 — TZ 가 먹으면(Linux/WSL/macOS) `export TZ`, 안 먹으면(Windows Git Bash/MSYS) 오프셋(+9h)을 직접 더해 환산한다(`tzdata 부재 환경 감지` INFO 1회 출력). 그래서 **이 세 스크립트만 쓰면 시각은 항상 올바른 로컬(KST)** 이다. 아래 진단/변환 가이드는 **`jq`/`awk` 로 epoch 를 직접 다룰 때만** 적용한다.
+
 #### 🚫 가장 흔한 함정 — Windows Git Bash/MSYS 에서 `TZ=Asia/Seoul` 이 조용히 UTC 로 폴백
 MSYS/Git Bash 에는 `Asia/Seoul` zoneinfo 가 없을 수 있어 **`export TZ=Asia/Seoul` 이 해석 실패 → 경고 없이 UTC 로 떨어진다.** 그러면 `awk strftime`/`date` 가 UTC 를 그대로 찍고, "KST" 라벨만 붙어 **모든 시각이 9시간 뒤로** 표기된다.
 ```bash
