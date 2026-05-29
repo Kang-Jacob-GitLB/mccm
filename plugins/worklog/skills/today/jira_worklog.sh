@@ -9,7 +9,8 @@
 #   KEY        Jira 이슈 키 (예: AVMC-123). "-" 또는 빈칸이면 SKIP.
 #   TIME_SPENT jira 시간 형식, 시간 단위 위주 (예: "2h", "1h 30m", "30m").
 #   STARTED    시작 시각 "YYYY-MM-DD HH:MM:00" (KST 로컬 시각으로 표기).
-#   COMMENT    한 줄 요약 (워크로그 코멘트). 줄바꿈 금지.
+#   COMMENT    워크로그 코멘트. 리터럴 '\n'(역슬래시+n)은 실제 줄바꿈으로 확장된다
+#              → 멀티라인 코멘트를 TSV 한 줄로 표현·입력 가능(손수 jira 호출 불필요).
 #   '#' 로 시작하는 줄은 주석/헤더로 무시.
 #
 # 옵션:
@@ -52,6 +53,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# ROUND 도 산술($(()))에 들어가므로 정수만 허용(명령 인젝션 차단).
+case "$ROUND" in ''|*[!0-9]*) echo "잘못된 --round (0 이상 정수): $ROUND" >&2; exit 2 ;; esac
+
 if ! command -v jira >/dev/null 2>&1; then
   echo "ERROR: 'jira' CLI 가 없다 (ankitpokhrel/jira-cli)." >&2
   exit 1
@@ -61,20 +65,26 @@ fi
 # tzdata 부재(Windows Git Bash 등) 환경에서도 9시간 어긋나지 않게 l2e/e2l 로 변환.
 . "$(dirname "${BASH_SOURCE[0]}")/_tz.sh"
 tz_setup "$TZ_IANA"
+# jira 공통 헬퍼(프로젝트 자동해결·워크로그 조회) — 겹침회피 조회에 사용.
+. "$(dirname "${BASH_SOURCE[0]}")/_jira.sh"
 
 # 작은따옴표 래핑(실행 안전 + 사람이 읽기 좋게). 내부 ' 는 '\'' 로 escape.
 sq() { local s=${1//\'/\'\\\'\'}; printf "'%s'" "$s"; }
 
 # "1h 36m" / "2h" / "45m" / "1d 2h" → 분(정수). 알 수 없는 토큰은 무시.
+# ⚠ 숫자부를 산술 전에 정수로 검증한다 — bash 산술은 a[$(cmd)] 형태 명령치환을
+#    평가하므로, 미검증 입력을 $(()) 에 넣으면 명령 인젝션이 된다.
 to_min() {
-  local total=0 tok num
+  local total=0 tok num mult
   for tok in $1; do
     case "$tok" in
-      *d) num=${tok%d}; total=$((total + num*8*60)) ;;   # 1d=8h
-      *h) num=${tok%h}; total=$((total + num*60)) ;;
-      *m) num=${tok%m}; total=$((total + num)) ;;
-      *)  : ;;
+      *d) num=${tok%d}; mult=480 ;;   # 1d=8h
+      *h) num=${tok%h}; mult=60 ;;
+      *m) num=${tok%m}; mult=1 ;;
+      *)  continue ;;
     esac
+    case "$num" in ''|*[!0-9]*) continue ;; esac   # 숫자만 허용
+    total=$((total + num*mult))
   done
   echo "$total"
 }
@@ -113,24 +123,15 @@ round_started() {
 # 내가 같은 날 단 기존 워크로그 구간을 REST 로 조회 → BUSY[] = "startEpoch:endEpoch".
 BUSY=(); BUSY_DAY=""
 load_busy() {  # $1=YYYY-MM-DD ; stdout: "started<TAB>timeSpentSeconds" 줄들
-  local day="$1" cfg="$HOME/.config/.jira/.config.yml"
-  local server login auth issues k
-  [ -f "$cfg" ] || return 0
-  server=$(grep -E '^server:' "$cfg" | head -1 | sed -E 's/^server:[[:space:]]*//; s/"//g')
-  login=$(grep -E '^login:'  "$cfg" | head -1 | sed -E 's/^login:[[:space:]]*//; s/"//g')
-  [ -n "$server" ] && [ -n "$login" ] && [ -n "${JIRA_API_TOKEN:-}" ] || return 0
-  auth=$(printf '%s:%s' "$login" "$JIRA_API_TOKEN" | base64 -w0)
-  issues=$(jira issue list --jql "worklogAuthor = currentUser() AND worklogDate = \"$day\"" \
-            --plain --no-headers --columns KEY --paginate 0:50 2>/dev/null \
-            | sed -E 's/\x1b\[[0-9;]*m//g' | tr -d ' ')
-  for k in $issues; do
+  # _jira.sh 헬퍼로 조회 — 프로젝트 키를 -p 로 명시(빈 'project ""' 로 빠지지 않게).
+  # (예전엔 -p 누락으로 일부 환경에서 빈 결과 → 겹침회피가 조용히 무력화됐다.)
+  local day="$1" k started spent secs
+  for k in $(jira_worklog_issues "$day" "$PROJECT"); do
     [ -n "$k" ] || continue
-    curl -s -H "Authorization: Basic $auth" -H "Accept: application/json" \
-      "$server/rest/api/3/issue/$k/worklog" 2>/dev/null \
-      | jq -r --arg me "$login" --arg day "$day" '.worklogs[]?
-          | select((.author.emailAddress // "")==$me)
-          | select(.started|startswith($day))
-          | "\(.started)\t\(.timeSpentSeconds)"' 2>/dev/null
+    jira_issue_worklogs "$k" "$day" | while IFS=$'\t' read -r started spent secs; do
+      [ -n "$started" ] || continue
+      printf '%s\t%s\n' "$started" "$secs"
+    done
   done
 }
 ensure_busy() {  # $1=YYYY-MM-DD ; BUSY[] 채움 (날짜 바뀌면 재조회)
@@ -181,6 +182,11 @@ while IFS=$'\t' read -r KEY TIME STARTED COMMENT || [ -n "${KEY:-}" ]; do
     echo "SKIP  (키 미정/시간 없음)  ${COMMENT:-}"
     skip=$((skip+1)); continue
   fi
+  # KEY 형식 검증(선두 영숫자 앵커로 '--flag' 형태 argv 인젝션 차단).
+  case "$KEY" in
+    [A-Za-z0-9]*-[0-9]*) ;;
+    *) echo "SKIP  (잘못된 이슈키: $KEY)"; skip=$((skip+1)); continue ;;
+  esac
 
   # 30분(=ROUND) 단위 반올림. 원본과 다르면 표시용으로 보관.
   orig_min=$(to_min "$TIME")
@@ -217,11 +223,18 @@ while IFS=$'\t' read -r KEY TIME STARTED COMMENT || [ -n "${KEY:-}" ]; do
     started_arg="$STARTED"; tz_args=(--timezone "$TZ_IANA")
   fi
 
+  # COMMENT 의 리터럴 \n(역슬래시+n) 을 실제 줄바꿈으로 확장(멀티라인 코멘트 지원).
+  # bash ${//} glob·sed 는 환경별 백슬래시 처리가 제각각이라, 이식성 좋은 printf %b 사용.
+  COMMENT_ML=$(printf '%b' "$COMMENT")
+  cline=$(printf '%s\n' "$COMMENT_ML" | grep -c '^')
+  c_first=${COMMENT_ML%%$'\n'*}
+  ml_note=""; [ "$cline" -gt 1 ] && ml_note="  (${cline}줄)"
+
   if [ "$APPLY" -eq 1 ]; then
-    args=("$KEY" "$TIME" --started "$started_arg" ${tz_args[@]+"${tz_args[@]}"} --comment "$COMMENT" --no-input)
+    args=("$KEY" "$TIME" --started "$started_arg" ${tz_args[@]+"${tz_args[@]}"} --comment "$COMMENT_ML" --no-input)
     [ -n "$PROJECT" ] && args=(-p "$PROJECT" "${args[@]}")
     if jira issue worklog add "${args[@]}" >/dev/null 2>"$errf"; then
-      echo "OK    $KEY  $TIME  @${STARTED}  — ${COMMENT}${rnd_note}"
+      echo "OK    $KEY  $TIME  @${STARTED}  — ${c_first}${ml_note}${rnd_note}"
       ok=$((ok+1))
     else
       echo "FAIL  $KEY  $TIME  : $(tr '\n' ' ' <"$errf")"
@@ -231,8 +244,9 @@ while IFS=$'\t' read -r KEY TIME STARTED COMMENT || [ -n "${KEY:-}" ]; do
     proj_prefix=""
     [ -n "$PROJECT" ] && proj_prefix="-p $(sq "$PROJECT") "
     tz_show=""; [ "${#tz_args[@]}" -gt 0 ] && tz_show=" --timezone $(sq "$TZ_IANA")"
-    printf 'DRY   jira issue worklog add %s%s %s --started %s%s --comment %s --no-input%s\n' \
-      "$proj_prefix" "$(sq "$KEY")" "$(sq "$TIME")" "$(sq "$started_arg")" "$tz_show" "$(sq "$COMMENT")" "$rnd_note"
+    # dry-run 은 한 줄로 미리보기(멀티라인은 첫 줄 + 줄 수 표기). 실제 apply 는 전체 확장.
+    printf 'DRY   jira issue worklog add %s%s %s --started %s%s --comment %s --no-input%s%s\n' \
+      "$proj_prefix" "$(sq "$KEY")" "$(sq "$TIME")" "$(sq "$started_arg")" "$tz_show" "$(sq "$c_first")" "$ml_note" "$rnd_note"
   fi
 done
 

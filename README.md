@@ -47,11 +47,11 @@ env 플러그인은 `mccm.json` 파일 하나에 환경 전체를 선언적으�
 
 ### worklog — 일일/주간 워크로그
 
-`today`는 Claude Code가 세션마다 남기는 트랜스크립트(`~/.claude/projects/<cwd-slug>/<session-id>.jsonl`)를 직접 파싱해 하루치 작업을 정리한다. 별도 hook 설치가 필요 없어 새 머신에서도 셋업 0으로 동작한다. 하루를 30분 슬롯 타임라인으로 시각화하고, 선택적으로 `jira` CLI로 워크로그 입력 후보를 추정·dry-run 미리보기·실제 입력까지 반자동화한다(30분 반올림, 같은 날 기존 워크로그·점심시간 회피). 주간보고가 필요하면 `week`가 이번 주(또는 지난주) 내 Jira 워크로그를 집계해 노션 등에 붙여넣을 주간보고 텍스트를 만든다(읽기 전용).
+`today`는 Claude Code가 세션마다 남기는 트랜스크립트(`~/.claude/projects/<cwd-slug>/<session-id>.jsonl`)를 직접 파싱해 하루치 작업을 정리한다. 별도 hook 설치가 필요 없어 새 머신에서도 셋업 0으로 동작한다. 데이터 수집은 `prep.sh` 한 번 호출로 활동·커밋·Jira 후보·당일 워크로그를 **동시 수집**해 압축 리포트로 내며(트랜스크립트 스캔과 Jira 조회를 병렬 실행, 시각변환·경로 basename·프로젝트 해결을 스크립트가 처리해 빠르고 토큰을 아낀다), 하루를 30분 슬롯 타임라인으로 시각화한다. 선택적으로 `jira` CLI로 워크로그 입력 후보를 추정·dry-run 미리보기·실제 입력까지 반자동화한다(30분 반올림, 같은 날 기존 워크로그·점심시간 회피, 멀티라인 코멘트). 주간보고가 필요하면 `week`가 이번 주(또는 지난주) 내 Jira 워크로그를 집계해 노션 등에 붙여넣을 주간보고 텍스트를 만든다(읽기 전용).
 
 | 스킬 | 설명 |
 |------|------|
-| [today](plugins/worklog/skills/today/) | 오늘(또는 지정일) 트랜스크립트 → 시간대·프로젝트·커밋·prompt 주제 요약 + 30분 슬롯 타임라인 + Jira 워크로그 dry-run/apply |
+| [today](plugins/worklog/skills/today/) | 오늘(또는 지정일) 트랜스크립트 → `prep.sh` 동시 수집(활동·커밋·Jira 후보·당일 워크로그) → 시간대·프로젝트·커밋·prompt 주제 요약 + 30분 슬롯 타임라인 + Jira 워크로그 dry-run/apply(멀티라인 코멘트) |
 | [week](plugins/worklog/skills/week/) | 이번 주(또는 지난주/지정 범위) 내 Jira 워크로그 집계 → 이슈별/일자별 시간 + 코멘트 기반 작업 서술을 노션용 주간보고 마크다운으로 출력 (읽기 전용) |
 
 **사전 요구사항:** `today` 요약은 `jq`만 있으면 동작(트랜스크립트 직접 파싱). Jira 워크로그 입력(`today`)·주간 집계(`week`)는 [`jira` CLI](https://github.com/ankitpokhrel/jira-cli)(`jira init` + `JIRA_API_TOKEN` env) + `curl`·`base64`·`jq` 필요.
@@ -132,7 +132,9 @@ mccm/
             ├── today/
             │   ├── SKILL.md
             │   ├── _tz.sh
+            │   ├── _jira.sh
             │   ├── collect.sh
+            │   ├── prep.sh
             │   ├── timeline.sh
             │   └── jira_worklog.sh
             └── week/
