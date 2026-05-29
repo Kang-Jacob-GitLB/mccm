@@ -18,9 +18,11 @@
 #   --tz <IANA>   기간 경계 해석 타임존 (기본 Asia/Seoul).
 #   -h, --help
 #
-# 요구: jira CLI(설정 완료: `jira init` + config) · JIRA_API_TOKEN env · curl · jq · base64.
-#   worklogAuthor=currentUser() 로 이슈를 찾고, 각 이슈의 /rest/api/3/issue/{key}/worklog
-#   를 조회해 내 계정(accountId/emailAddress) + 기간 내 워크로그만 추린다.
+# 요구: jira config(`jira init` 로 1회 생성: server/login) · JIRA_API_TOKEN env · curl · jq · base64.
+#   런타임은 순수 REST 다: /rest/api/3/search/jql(전 프로젝트, worklogAuthor=currentUser())로
+#   이슈를 찾고, 각 이슈의 /rest/api/3/issue/{key}/worklog 를 조회해 내 계정
+#   (accountId/emailAddress) + 기간 내 워크로그만 추린다. (jira-cli 바이너리는 호출하지 않음 —
+#   jira-cli `issue list` 는 config 의 기본 project 로 스코프돼 타 프로젝트 워크로그를 놓친다.)
 set -euo pipefail
 
 TZ_IANA="Asia/Seoul"
@@ -37,9 +39,13 @@ while [ $# -gt 0 ]; do
 done
 
 # 의존 도구 확인 (필수)
-for t in jira curl jq base64; do
-  command -v "$t" >/dev/null 2>&1 || { echo "ERROR: '$t' 없음 — 요구사항(jira/curl/jq/base64) 설치 후 재시도." >&2; exit 1; }
+for t in curl jq base64; do
+  command -v "$t" >/dev/null 2>&1 || { echo "ERROR: '$t' 없음 — 요구사항(curl/jq/base64) 설치 후 재시도." >&2; exit 1; }
 done
+
+# Windows(MSYS) jq.exe 는 줄끝을 CRLF 로 낸다 → 출력의 \r 를 제거하지 않으면
+# read/[ -eq ]/문자열 비교가 깨진다(예: nw="16\r", email="x@y\r" 매칭 실패). 래퍼로 일괄 처리.
+jqr() { jq "$@" | tr -d '\r'; }
 
 # 공통 TZ 유틸 (tzdata 부재 환경에서도 날짜 경계가 9시간 어긋나지 않게).
 . "$(dirname "${BASH_SOURCE[0]}")/_tz.sh"
@@ -81,18 +87,28 @@ api() {  # $1=경로(/rest/...) → stdout JSON. 실패해도 비치명적(빈 �
 
 # 내 계정 식별(accountId 가 가장 신뢰도 높음; emailAddress 는 GDPR 로 가려질 수 있음).
 myself=$(api "/rest/api/3/myself")
-my_acct=$(printf '%s' "$myself"  | jq -r '.accountId // ""' 2>/dev/null || echo "")
-my_email=$(printf '%s' "$myself" | jq -r '.emailAddress // ""' 2>/dev/null || echo "")
-[ -n "$my_acct" ]  || my_acct="$login"    # 폴백
-[ -n "$my_email" ] || my_email="$login"
+IFS=$'\t' read -r my_acct my_email < <(printf '%s' "$myself" | jqr -r '[.accountId // "", .emailAddress // ""] | @tsv' 2>/dev/null) || true
+[ -n "${my_acct:-}" ]  || my_acct="$login"    # 폴백
+[ -n "${my_email:-}" ] || my_email="$login"
 
-# ── 기간 내 내 워크로그가 있는 이슈 조회 (jira-cli, JQL) ───────
+# ── 기간 내 내 워크로그가 있는 이슈 조회 (REST /search/jql, 전 프로젝트) ──
 # START/END 는 위에서 YYYY-MM-DD 로 검증됨 → JQL 삽입 안전.
+# jira-cli `issue list` 는 config 의 기본 project 로 스코프돼 타 프로젝트 워크로그를
+# 놓치므로 project 스코프 없는 REST 검색을 쓴다(구 /rest/api/3/search 는 410 →
+# 신 /rest/api/3/search/jql).
 jql="worklogAuthor = currentUser() AND worklogDate >= \"$START\" AND worklogDate <= \"$END\""
-keys=$(jira issue list --jql "$jql" --plain --no-headers --columns KEY --paginate 0:100 2>/dev/null \
-        | sed -E 's/\x1b\[[0-9;]*m//g' | tr -d ' \t' | sed '/^$/d' | sort -u || true)
+enc=$(jqr -rn --arg q "$jql" '$q|@uri' || true)
+search=$(api "/rest/api/3/search/jql?jql=$enc&fields=summary,status&maxResults=100")
+# 검증(issues 존재)+isLast 를 한 번의 jq 로: "OK\t<isLast>" 또는 "ERR\t<메시지>".
+IFS=$'\t' read -r sv_ok sv_extra < <(printf '%s' "$search" \
+  | jqr -r 'if has("issues") then "OK\t\(.isLast // true)" else "ERR\t\((.errorMessages // [])|join("; "))" end' 2>/dev/null) || true
+if [ "${sv_ok:-}" != "OK" ]; then
+  echo "ERROR: Jira 이슈 검색 실패 — ${sv_extra:-인증/네트워크/JQL 확인 (server=$server)}" >&2
+  exit 1
+fi
+[ "${sv_extra:-}" = "false" ] && echo "WARN: 이슈 100개 초과 — 일부 누락 가능(주간 범위 이례적)." >&2 || true
 
-TMP="$(mktemp)"; trap 'rm -f "$TMP"' EXIT
+TMP="$(mktemp)"; TMPD="$(mktemp -d)"; trap 'rm -rf "$TMP" "$TMPD"' EXIT
 
 # 워크로그 정규화 jq (단일 인용 — bash 확장 없음; 동적 값은 전부 --arg).
 read -r -d '' JQWL <<'JQ' || true
@@ -115,23 +131,33 @@ def adf2txt:
     comment:((.comment // "") | adf2txt | gsub("\n+";" / ") | gsub("^ */ *| */ *$";"")) }
 JQ
 
-set -f   # $keys 워드 분할 시 글롭 확장 방지(키에 *,?,[ 가 와도 파일명 확장 안 함)
-for k in $keys; do
-  [ -n "$k" ] || continue
-  # 이슈 요약/상태 (REST — jira-cli plain 파싱보다 신뢰도 높음)
-  meta=$(api "/rest/api/3/issue/$k?fields=summary,status")
-  summary=$(printf '%s' "$meta" | jq -r '.fields.summary // ""' 2>/dev/null || echo "")
-  status=$(printf '%s'  "$meta" | jq -r '.fields.status.name // ""' 2>/dev/null || echo "")
-  # 해당 이슈에서 내 계정 + 기간 내 워크로그만 정규화해 emit
-  api "/rest/api/3/issue/$k/worklog" \
-    | jq -c --arg key "$k" --arg summary "$summary" --arg status "$status" \
+# 이슈별 워크로그 조회 → 내 계정 + 기간 내 것만 정규화. 이슈마다 REST 1회라
+# 순차로는 이슈 수에 비례해 느리다 → 동시성 제한(PAR) 병렬 fetch 로 왕복 지연을 겹친다.
+# 출력 라인 섞임 방지를 위해 각 이슈 결과는 별도 임시파일에 받고 마지막에 합친다.
+fetch_one() {  # $1=key $2=summary $3=status ; JSONL → stdout
+  api "/rest/api/3/issue/$1/worklog" \
+    | jqr -c --arg key "$1" --arg summary "$2" --arg status "$3" \
            --arg acct "$my_acct" --arg email "$my_email" --arg s "$START" --arg e "$END" \
-           "$JQWL" 2>/dev/null >> "$TMP" || true
-done
-set +f
+           "$JQWL" 2>/dev/null || true
+}
+PAR="${WORKLOG_PAR:-8}"                        # 동시 요청 수 (env WORKLOG_PAR 로 조절)
+case "$PAR" in ''|*[!0-9]*) PAR=8 ;; esac      # 비정수/빈값 → 8 (무제한 병렬·노이즈 방지)
+[ "$PAR" -lt 1 ]  && PAR=8                       # 0/음수 → 8 (busy-loop spin 방지)
+[ "$PAR" -gt 32 ] && PAR=32                      # 상한 (커넥션 폭주 방지)
+n=0
+while IFS=$'\t' read -r k summary status; do
+  [ -n "$k" ] || continue
+  n=$((n+1))
+  fetch_one "$k" "$summary" "$status" > "$TMPD/$n.jsonl" &
+  # 동시 실행 잡이 PAR 개에 도달하면 하나 끝날 때까지 대기(구버전 bash 는 전체 대기로 폴백).
+  while [ "$(jobs -rp | wc -l)" -ge "$PAR" ]; do wait -n 2>/dev/null || wait; done
+done < <(printf '%s' "$search" \
+           | jqr -r '.issues[]? | [.key, (.fields.summary // ""), (.fields.status.name // "")] | @tsv')
+wait
+cat "$TMPD"/*.jsonl > "$TMP" 2>/dev/null || true
 
 # ── 출력 1단: 레코드 JSONL (started 기준 정렬) ────────────────
-jq -c -s 'sort_by(.started)[]' "$TMP" 2>/dev/null || true
+jqr -c -s 'sort_by(.started)[]' "$TMP" 2>/dev/null || true
 
 # ── 출력 2단: 결정적 집계 ────────────────────────────────────
 sec2hm() { local s=${1:-0} h m o=""; h=$((s/3600)); m=$(((s%3600)/60)); [ "$h" -gt 0 ] && o="${h}h"; [ "$m" -gt 0 ] && o="${o:+$o }${m}m"; echo "${o:-0m}"; }
@@ -140,33 +166,33 @@ wd() { local u; u=$(date -d "$1" +%u 2>/dev/null) || { echo "?"; return; }; loca
 echo "===SUMMARY==="
 echo "기간: ${START}($(wd "$START")) ~ ${END}($(wd "$END"))"
 
-total_sec=$(jq -s 'map(.seconds)|add // 0' "$TMP" 2>/dev/null || echo 0)
-n_issue=$(jq -s '[.[].key]|unique|length' "$TMP" 2>/dev/null || echo 0)
-n_day=$(jq -s '[.[].date]|unique|length' "$TMP" 2>/dev/null || echo 0)
-n_wl=$(jq -s 'length' "$TMP" 2>/dev/null || echo 0)
+# 모든 집계를 단일 jq 로 산출(Windows 프로세스 스폰 최소화). 태그 T/I/D 로 구분:
+#   T <총초> <이슈수> <근무일수> <워크로그수> · I <키> <초> <건> <상태> <요약> · D <일> <초> <건>
+agg=$(jqr -r -s '
+  ( "T\t\(map(.seconds)|add // 0)\t\([.[].key]|unique|length)\t\([.[].date]|unique|length)\t\(length)" ),
+  ( group_by(.key)  | map({k:.[0].key, st:.[0].status, su:.[0].summary, sec:(map(.seconds)|add), c:length})
+    | sort_by(-.sec)[] | "I\t\(.k)\t\(.sec)\t\(.c)\t\(.st)\t\(.su)" ),
+  ( group_by(.date) | map({d:.[0].date, sec:(map(.seconds)|add), c:length})
+    | sort_by(.d)[]   | "D\t\(.d)\t\(.sec)\t\(.c)" )
+' "$TMP" 2>/dev/null || true)
 
-if [ "${n_wl:-0}" -eq 0 ]; then
+issues=(); days=(); tot=0; ni=0; nd=0; nw=0
+while IFS=$'\t' read -r tag a b c d e; do
+  case "${tag:-}" in
+    T) tot=$a; ni=$b; nd=$c; nw=$d ;;
+    I) issues+=("$(printf '  %-18s %-8s (%s건)  %-12s %s' "$a" "$(sec2hm "$b")" "$c" "${d:-?}" "$e")") ;;
+    D) days+=("$(printf '  %s(%s)  %-8s (%s건)' "$a" "$(wd "$a")" "$(sec2hm "$b")" "$c")") ;;
+  esac
+done <<< "$agg"
+
+if [ "${nw:-0}" -eq 0 ]; then
   echo "(이 기간에 내가 등록한 Jira 워크로그가 없다.)"
   exit 0
 fi
-
-echo "총합: $(sec2hm "$total_sec") · 이슈 ${n_issue}건 · 근무일 ${n_day}일 · 워크로그 ${n_wl}건"
+echo "총합: $(sec2hm "$tot") · 이슈 ${ni}건 · 근무일 ${nd}일 · 워크로그 ${nw}건"
 echo
 echo "[이슈별] (시간 내림차순)"
-jq -r -s 'group_by(.key)
-          | map({key:.[0].key, summary:.[0].summary, status:.[0].status,
-                 sec:(map(.seconds)|add), cnt:length})
-          | sort_by(-.sec)[]
-          | "\(.key)\t\(.sec)\t\(.cnt)\t\(.status)\t\(.summary)"' "$TMP" 2>/dev/null \
-  | while IFS=$'\t' read -r key sec cnt status summary; do
-      printf '  %-18s %-8s (%s건)  %-12s %s\n' "$key" "$(sec2hm "$sec")" "$cnt" "${status:-?}" "$summary"
-    done
+printf '%s\n' "${issues[@]}"
 echo
 echo "[일자별]"
-jq -r -s 'group_by(.date)
-          | map({date:.[0].date, sec:(map(.seconds)|add), cnt:length})
-          | sort_by(.date)[]
-          | "\(.date)\t\(.sec)\t\(.cnt)"' "$TMP" 2>/dev/null \
-  | while IFS=$'\t' read -r d sec cnt; do
-      printf '  %s(%s)  %-8s (%s건)\n' "$d" "$(wd "$d")" "$(sec2hm "$sec")" "$cnt"
-    done
+printf '%s\n' "${days[@]}"

@@ -18,12 +18,14 @@ description: 한 주(기본 이번 주 월~오늘, KST) 동안 내가 Jira 에 �
 
 | 도구 | 용도 |
 |---|---|
-| **jira CLI** (`jira`, 설정 완료) | 기간 내 내 워크로그가 있는 이슈 조회(JQL) |
-| **JIRA_API_TOKEN** env | REST 워크로그/이슈 조회 인증 |
-| **curl · jq · base64** | REST 호출·JSON 파싱·Basic 인증 헤더 |
+| **jira config** (`jira init` 1회) | `~/.config/.jira/.config.yml`(server/login) 생성용. **런타임은 jira 바이너리를 호출하지 않는다**(아래 참고). |
+| **JIRA_API_TOKEN** env | REST 인증(이슈 검색·워크로그 조회, Basic) |
+| **curl · jq · base64** | REST 호출·JSON 파싱·Basic 인증 헤더 (런타임 필수 바이너리) |
 
-- `jira` 설정(설치 + `jira init` + `JIRA_API_TOKEN`)이 안 돼 있으면 **`today` 스킬의 "jira CLI" 요구사항 섹션**과 동일하게 안내하고 중단한다. 검증: `jira me` 가 본인 계정을 출력하면 정상.
-- 토큰·비밀번호는 출력·스킬에 **절대 하드코딩 금지** (env/config 참조만). 진입 시 `command -v` 로 도구 존재부터 확인.
+- 런타임은 **순수 REST** 다: `/rest/api/3/search/jql`(전 프로젝트, `worklogAuthor = currentUser()`) + 이슈별 `/rest/api/3/issue/{key}/worklog`. jira-cli `issue list` 는 config 의 기본 `project` 로 스코프돼 **타 프로젝트 워크로그를 놓치므로** 검색에 쓰지 않는다(구 `/rest/api/3/search` 는 410 → 신 `/search/jql`).
+- 설정(`jira init` + `JIRA_API_TOKEN`)이 안 돼 있으면 **`today` 스킬의 "jira CLI" 요구사항 섹션**과 동일하게 안내하고 중단한다. 검증: `jira me`(또는 `curl .../rest/api/3/myself`)가 본인 계정을 내면 정상.
+- 토큰·비밀번호는 출력·스킬에 **절대 하드코딩 금지** (env/config 참조만). 진입 시 `command -v` 로 `curl`/`jq`/`base64` 존재부터 확인.
+- 이슈마다 워크로그 REST 1회를 호출하므로 **동시성 제한 병렬**(`WORKLOG_PAR`, 기본 8)로 조회한다 — 이슈가 많아도 왕복 지연이 겹쳐 거의 일정하게 끝난다.
 
 ## 절차
 
