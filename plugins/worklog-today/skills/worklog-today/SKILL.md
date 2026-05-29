@@ -1,6 +1,6 @@
 ---
 name: worklog-today
-description: Claude Code 세션 트랜스크립트(~/.claude/projects)에서 오늘(또는 지정일) 작업 내역을 읽어 시간대·프로젝트·커밋·prompt 주제로 요약하고 Jira worklog 입력 후보 표를 생성. 선택적으로 jira CLI 로 워크로그를 dry-run 미리보기/실제 입력까지 수행. gws-cli(권장) 연동 시 Google Calendar 회의 일정을 병합해 회의 시간도 워크로그로 인지. hook 불필요. "오늘 워크로그", "오늘 한 일 정리", "워크로그 요약", "worklog today", "어제 워크로그", "지난주 워크로그", "jira 워크로그 입력", "워크로그 등록 dry-run" 등에 사용.
+description: Claude Code 세션 트랜스크립트(~/.claude/projects)에서 오늘(또는 지정일) 작업 내역을 읽어 시간대·프로젝트·커밋·prompt 주제로 요약하고 Jira worklog 입력 후보 표를 생성. 선택적으로 jira CLI 로 워크로그를 dry-run 미리보기/실제 입력까지 수행. gws(권장, npm `@googleworkspace/cli`) 연동 시 Google Calendar 회의 일정을 병합해 회의 시간도 워크로그로 인지. hook 불필요. "오늘 워크로그", "오늘 한 일 정리", "워크로그 요약", "worklog today", "어제 워크로그", "지난주 워크로그", "jira 워크로그 입력", "워크로그 등록 dry-run" 등에 사용.
 ---
 
 # 오늘 워크로그 요약
@@ -16,7 +16,7 @@ Claude Code 가 **세션마다 자동으로 남기는 트랜스크립트**(`~/.c
 | 도구 | 등급 | 용도 | 미설치 시 동작 |
 |---|---|---|---|
 | **jira CLI** (`jira`) | **필수** (워크로그 입력 시) | 절차 5 — Jira 워크로그 dry-run/실제 입력 | 아래 설치 가이드 안내 후 **입력 단계 중단** (요약은 정상 출력) |
-| **gws-cli** | **권장** | 절차 2-2 — Google Calendar 회의 일정 병합 (회의 시간을 워크로그로 인지·겹침회피) | 설치 **권장 안내**만 하고 **캘린더 없이 진행** (작업 트랜스크립트 기반으로만 요약) |
+| **gws** (npm `@googleworkspace/cli`) | **권장** | 절차 2-2 — Google Calendar 회의 일정 병합 (회의 시간을 워크로그로 인지·겹침회피) | 설치 **권장 안내**만 하고 **캘린더 없이 진행** (작업 트랜스크립트 기반으로만 요약) |
 
 > 원칙: 스킬 진입 시 필요한 CLI 가 없으면 **묻기 전에 먼저 `command -v` 로 존재 확인** → 없으면 등급에 맞게 (필수=중단+가이드 / 권장=안내 후 스킵) 처리. 토큰·비밀번호는 출력·스킬에 **절대 하드코딩 금지** (env/config 참조만).
 
@@ -35,22 +35,23 @@ command -v jira >/dev/null || echo "jira CLI 미설치"
 3. `jira init` → 서버 URL(예: `https://your-org.atlassian.net`) + 로그인 이메일 입력. config 는 `~/.config/.jira/.config.yml` 에 저장.
 4. 검증: `jira me` 가 본인 계정을 출력하면 정상. (절차 5.0 의 사전 확인과 동일.)
 
-### gws-cli (권장 — 회의 일정 병합용)
+### gws (권장 — 회의 일정 병합용)
 ```bash
-command -v gws-cli >/dev/null || echo "gws-cli 미설치 — 회의 병합 기능은 건너뜀(권장 설치)"
+command -v gws >/dev/null || echo "gws 미설치 — 회의 병합 기능은 건너뜀(권장 설치)"
 ```
-**설치** (Python 패키지, Python 3.10+):
-- `pip install gws-cli`  (또는 격리 설치 `pipx install gws-cli`)
-- 검증: `gws-cli --version`
+**설치** (npm 패키지 `@googleworkspace/cli`, Node 18+):
+- `npm install -g @googleworkspace/cli`  — 바이너리 이름은 `gws`
+- 검증: `gws --version`
 
 **환경 구성** (Google OAuth):
 1. [Google Cloud Console](https://console.cloud.google.com/)에서 프로젝트 생성 → **Google Calendar API** 사용 설정.
-2. OAuth 클라이언트 ID(애플리케이션 유형: **데스크톱 앱**) 생성 → `client_secret.json` 다운로드.
-3. 자격증명 가져오기(암호화 저장): `gws-cli auth import-credentials <client_secret.json 경로>`
-4. 인증(브라우저 OAuth 동의): `gws-cli auth`  — 토큰은 `~/.config/gws-cli/token.json` 에 저장.
-5. 검증: `gws-cli auth status` 가 `authenticated` 이면 정상. 다계정은 `--account <이름>` 또는 `GWS_ACCOUNT` env.
+2. OAuth 클라이언트 ID(애플리케이션 유형: **데스크톱 앱**) 생성 → `client_secret.json` 다운로드 후 `~/.config/gws/client_secret.json` 에 둔다. (또는 `gws auth setup` 으로 GCP 프로젝트+OAuth 클라이언트를 대화식 구성 — `gcloud` 필요.)
+3. 인증(브라우저 OAuth 동의): `gws auth login`  — 토큰은 OS 키링(기본) 또는 `~/.config/gws/` 에 저장.
+4. 검증: `gws auth status` 가 JSON 으로 `auth_method`·`credential_source`·`client_config_exists:true` 를 출력하면 정상. 자격증명/토큰이 없으면 auth 에러(exit 2).
+5. env 대안: `GOOGLE_WORKSPACE_CLI_TOKEN`(미리 받은 액세스 토큰, 최우선)·`GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE`·`GOOGLE_WORKSPACE_CLI_CONFIG_DIR`(기본 `~/.config/gws`)·`GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND`(`keyring` 기본 / `file`).
 
-> 회사가 OAuth 릴레이 서버를 운영하면 `gws-cli auth server-login` + `gws-cli config set-mode server` 로도 인증 가능.
+> ⚠ `gws` 는 stdout 에 JSON 을, stderr 에 `Using keyring backend: keyring` 같은 진단 라인을 낸다 → JSON 파싱 전 반드시 `2>/dev/null` 로 stderr 를 분리한다.
+> 참고: 과거 버전은 Python 패키지 `gws-cli`(`pip install gws-cli`, `gws-cli auth`)를 썼다. npm `gws`(`@googleworkspace/cli`)로 전환했으니 `gws-cli` 만 설치돼 있다면 `npm install -g @googleworkspace/cli` 로 설치한다.
 
 ## 주 용도: 퇴근 전 일일 루틴
 이 스킬의 1차 목적은 **매일 퇴근 전 1회 호출로 Jira 워크로그 입력을 반자동화**하는 것이다. 표준 흐름:
@@ -104,34 +105,61 @@ DATE="2026-05-26"                      # 대상일(KST). 생략하면 오늘.
 ```
 이후 모든 분석/시각화는 `today.jsonl` 만 소비한다. `timeline.sh`·`jira_worklog.sh` 도 같은 `$SKILL_DIR` 에 있다.
 
-### 2-1. 시각 변환 규칙 (⚠ +9h 는 단 한 번)
-`collect.sh` 는 `epoch`(raw UTC 초)와 `ts`(UTC ISO)를 낸다. KST 표기 시 **+9h 이중적용**을 조심한다.
-(실제 발생: 오전 09:53 작업이 저녁 18:53 으로 잘못 표기됨 — +9 한 값을 awk strftime 에 또 넘겨 +9 재적용.)
+### 2-1. 시각 변환 규칙 (⚠ 트랜스크립트는 UTC — KST 변환은 단 한 번)
+**대전제: 트랜스크립트의 모든 시각은 UTC 다.** `collect.sh` 의 `ts` 는 UTC ISO(끝에 `Z`), `epoch` 은 raw UTC 초다. 화면 표기는 KST(`+09:00`)이므로 **UTC→KST 변환을 정확히 한 번만** 적용한다. 안 하면 9시간 뒤(UTC 그대로), 두 번 하면 9시간 앞으로 어긋난다.
+(실제 발생 ①: 오전 09:53 작업이 저녁 18:53 으로 — +9 한 값을 awk strftime 에 또 넘겨 +9 재적용. ②: 오전 09:33 작업이 00:33 으로 — `TZ=Asia/Seoul` 가 안 먹혀 UTC 그대로 표기, 아래 MSYS 함정.)
 
-- 표준(권장): jq 는 `epoch`(raw UTC)만 내보내고, `export TZ=Asia/Seoul` 상태의 `awk strftime` 으로 포맷한다 → +9 산술을 **직접 쓰지 않는다**.
-- 🚫 금지: `epoch + 9*3600` 한 값을 다시 `awk`/`date` strftime 에 넘기기.
-
-출력 표준 (raw epoch 보존 → TZ=Asia/Seoul awk):
+#### 🚫 가장 흔한 함정 — Windows Git Bash/MSYS 에서 `TZ=Asia/Seoul` 이 조용히 UTC 로 폴백
+MSYS/Git Bash 에는 `Asia/Seoul` zoneinfo 가 없을 수 있어 **`export TZ=Asia/Seoul` 이 해석 실패 → 경고 없이 UTC 로 떨어진다.** 그러면 `awk strftime`/`date` 가 UTC 를 그대로 찍고, "KST" 라벨만 붙어 **모든 시각이 9시간 뒤로** 표기된다.
 ```bash
-export TZ=Asia/Seoul
+# 진단: 두 값이 같으면 TZ=Asia/Seoul 이 안 먹는 환경(=UTC 폴백). 다르면 정상.
+[ "$(TZ=Asia/Seoul date +%H)" = "$(TZ=UTC date +%H)" ] && echo "⚠ TZ 미해석(UTC 폴백) — 아래 안전 변환 사용" || echo "TZ OK"
+```
+
+#### 변환 방법 (환경별 안전 선택)
+- **A. 시스템 로컬이 이미 KST 인 경우(권장)**: `TZ` 를 **오버라이드하지 말고** 시스템 로컬 `date -d @<epoch>` 를 쓴다. KST 머신이면 이게 자동으로 KST 다. awk 의 `strftime` 도 TZ 미설정이면 시스템 로컬을 따른다.
+- **B. TZ=Asia/Seoul 이 실제로 먹는 환경(Linux/WSL/macOS)**: `export TZ=Asia/Seoul` 후 `awk strftime` — 산술 +9 를 직접 쓰지 않는다.
+- **C. KST 가 아닌 머신에서 KST 를 강제해야 하는데 TZ 가 안 먹는 경우(MSYS 등)**: **딱 한 번** `epoch + 32400`(=9h) 한 값을 `TZ=UTC` strftime 으로 찍는다(이중적용 금지 — 이때만 의도적 1회).
+- 🚫 금지: TZ 가 먹는데도 `epoch + 9*3600` 을 또 더하기 / TZ=Asia/Seoul 이라 믿고 검증 없이 strftime 하기.
+
+출력 표준 (A안 — 시스템 로컬 KST, TZ 오버라이드 없음):
+```bash
 #  ⚠ prompt/subject 의 개행은 awk -F'\t' 레코드를 쪼갠다 → jq 에서 gsub 로 한 줄 평탄화.
 jq -r 'select(.event=="prompt" or .event=="commit")
-       | "\(.epoch)\t\(.event)\t\((.subject // .prompt // "") | gsub("\\s+"; " "))"' today.jsonl \
-  | sort -n | awk -F'\t' '{ printf "%s  %-8s %s\n", strftime("%H:%M:%S",$1), $2, $3 }'
+       | "\(.epoch)\t\(.event)\t\((.subject // .prompt // "") | gsub("[ \t\n\r]+"; " "))"' today.jsonl \
+  | sort -n \
+  | awk -F'\t' '$1 !~ /^[0-9]+$/ { next }   # 방어: epoch 은 정수만 — 비정상 값은 셸로 안 보냄
+                { cmd="date -d @"$1" +%H:%M:%S"; cmd|getline t; close(cmd); printf "%s  %-8s %s\n", t, $2, $3 }'
+#  (B안이면 맨 앞에 export TZ=Asia/Seoul 후 awk strftime("%H:%M:%S",$1) 사용 가능)
 ```
-검증: 출력 첫 시각이 상식적 업무시간대(예: 오전 9~10시)와 맞는지 확인. 12시간 어긋나면 이중변환 의심.
+**검증(필수)**: 그날 직접 만든 커밋이 있으면 워크로그 시각을 `git log -1 --date=iso` 의 author 시각과 대조한다 — 9시간(또는 12시간) 어긋나면 위 변환을 잘못 고른 것이다. 없으면 "첫 시각이 상식적 업무시간대(오전 9~10시)인가"로 1차 점검.
 
-### 2-2. (선택·권장) 회의 일정 병합 — gws-cli
-`gws-cli` 가 설치·인증돼 있으면 그날 Google Calendar 회의를 가져와 타임라인·워크로그 후보에 합친다. **없으면 이 단계를 조용히 건너뛰고** 트랜스크립트 기반으로만 진행한다(권장 안내 1회).
+### 2-2. (선택·권장) 회의 일정 병합 — gws (npm `@googleworkspace/cli`)
+`gws` 가 설치·인증돼 있으면 그날 Google Calendar 회의를 가져와 타임라인·워크로그 후보에 합친다. **없으면 이 단계를 조용히 건너뛰고** 트랜스크립트 기반으로만 진행한다(권장 안내 1회).
 
 ```bash
-command -v gws-cli >/dev/null && gws-cli auth status >/dev/null 2>&1 || {
-  echo "gws-cli 미설치/미인증 → 회의 병합 생략 (요구사항 섹션의 gws-cli 가이드 참고, 권장)"; }
-# 그날 회의 조회 (KST). 시간 플래그는 --from/--to (ISO8601), -n 으로 개수 상향.
-gws-cli calendar list --from "${DATE}T00:00:00+09:00" \
-                      --to "${DATE}T23:59:59+09:00" -n 50
+command -v gws >/dev/null || { echo "gws 미설치 → 회의 병합 생략 (요구사항 섹션의 gws 가이드 참고, 권장)"; }
+# ⚠ DATE 는 사용자 입력에서 유도되므로 셸 명령에 끼우기 전 형식을 강제한다(인젝션 차단).
+case "$DATE" in
+  [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;            # YYYY-MM-DD 만 허용
+  *) echo "잘못된 날짜 형식: $DATE" >&2; exit 2 ;;
+esac
+# --params JSON 은 값 splicing 대신 jq --arg 로 안전하게 조립한다.
+PARAMS=$(jq -nc --arg d "$DATE" '{
+  calendarId:"primary",
+  timeMin:($d+"T00:00:00+09:00"),
+  timeMax:($d+"T23:59:59+09:00"),
+  singleEvents:true, orderBy:"startTime", maxResults:50}')
+# 그날 회의 조회 (KST). ⚠ stderr(keyring 진단)는 2>/dev/null 로 버리고 stdout(JSON)만 파싱.
+gws calendar events list --format json --params "$PARAMS" 2>/dev/null > cal.json
+# 인증 안돼 있으면 exit 2(auth 에러) + 빈/에러 출력 → 회의 병합 생략하고 진행.
+jq -r '.items[]?
+  | select((.start.dateTime // null) != null)        # 종일(all-day) 제외
+  | select([.attendees[]? | select(.self==true) | .responseStatus] | (index("declined") | not))  # 거절 제외
+  | "\(.start.dateTime)\t\(.end.dateTime)\t\(.summary // "(제목없음)")"' cal.json
 ```
-- ⚠ `gws-cli`(Python)의 `calendar list` 에는 `--format json` 옵션이 **없다**(출력은 사람이 읽는 표 형식). Claude 가 그 출력에서 각 이벤트의 **시작·종료 시각·제목·참석여부**를 읽어 정규화한다. (npm `gws calendar events list --format json` 이 설치돼 있으면 JSON 으로 받아 파싱해도 된다.)
+- ⚠ npm `gws` 는 stdout 에 **JSON**(`--format json`), stderr 에 `Using keyring backend: keyring` 진단 라인을 낸다 → **반드시 `2>/dev/null`** 로 분리해야 jq 가 파싱한다. (구 Python `gws-cli` 의 `calendar list` 표 출력이 아니다.)
+- 각 이벤트의 **시작·종료 시각(`start.dateTime`/`end.dateTime`)·제목(`summary`)·본인 참석상태(`attendees[].self==true` 의 `responseStatus`)** 를 읽어 정규화한다.
 - 읽어낸 각 회의를 `collect.sh` 와 **동일 스키마**의 라인으로 정규화해 `today.jsonl` 에 합친다 (event 종류는 `meeting`):
   ```json
   {"ts":"ISO8601(UTC)","env":"gcal","event":"meeting","subject":"<회의 제목>","epoch":<시작 UTC초>,"end_epoch":<종료 UTC초>}
@@ -169,20 +197,30 @@ gws-cli calendar list --from "${DATE}T00:00:00+09:00" \
 `jira me` 가 동작해야 한다(config `~/.config/.jira/.config.yml`). 실패하면 최초 `jira init`(서버 URL + 로그인) 안내 후 중단. 겹침회피의 워크로그 조회(REST)와 `--apply` 는 config 의 `server`·`login` + `JIRA_API_TOKEN` env 를 쓴다. **토큰/비밀번호는 스킬·출력에 절대 하드코딩 금지** (기존 env/config 참조만).
 
 #### 5.1 내 이슈 후보 조회
-오늘 작업과 매칭할 후보를 가져온다 (담당 + 최근 접근):
+오늘 작업과 매칭할 후보를 가져온다 (담당 + 최근 접근). **워크로그 대상은 활성(미완료) 이슈가 원칙**이므로 미완료를 먼저, 완료는 참고용으로 분리해 가져온다:
 ```bash
 ME=$(jira me)
-jira issue list -a "$ME" --order-by updated --reverse \
-  --plain --no-headers --columns KEY,STATUS,SUMMARY --paginate 0:20   # 내 담당, 최근 업데이트 순
+# ① 워크로그 1순위 후보 — 내 담당 '미완료'(statusCategory != Done)
+jira issue list -a "$ME" -q "statusCategory != Done" --order-by updated --reverse \
+  --plain --no-headers --columns KEY,STATUS,SUMMARY --paginate 0:20
+# ② 최근 접근 이슈로 보강(상태 무관)
 jira issue list --history \
-  --plain --no-headers --columns KEY,STATUS,SUMMARY --paginate 0:20   # 최근 접근 이슈로 보강
+  --plain --no-headers --columns KEY,STATUS,SUMMARY --paginate 0:20
+# ③ (참고용) 완료 이슈 — 매칭 근거 확인에만 쓰고 워크로그 대상으로는 기본 제외(5.2 규칙)
+jira issue list -a "$ME" -q "statusCategory = Done" --order-by updated --reverse \
+  --plain --no-headers --columns KEY,STATUS,SUMMARY --paginate 0:20
 ```
+> `STATUS` 컬럼을 반드시 함께 받아 각 후보의 완료 여부를 안다(5.2 에서 완료 티켓을 거른다).
 
 #### 5.2 추정 매핑 (가안 생성)
 각 주제 그룹(절차 4)을 조회된 이슈와 매칭한다 — 주제/커밋/브랜치 **키워드 ↔ 이슈 SUMMARY** 유사도.
 - 추정마다 **근거**(어떤 키워드가 어느 이슈와 맞았는지) + **확신도**(높음/낮음)를 붙인다.
 - 브랜치 `[A-Z]+-[0-9]+` 키가 있으면 최우선(확신 높음).
 - 애매하면 가안엔 확신 높은 1개를 넣되 `(추정)` 표시 + 후보 병기. 도저히 못 정하면 KEY=`-`(SKIP).
+- 🚫 **완료(Done/Closed/해결됨) 상태 이슈에는 워크로그를 달지 않는다.** 이미 종료된 티켓에 시간 기록은 부적절하다(재오픈 유발·집계 왜곡).
+  - 키워드가 완료 티켓과 가장 잘 맞더라도, **활성(미완료) 이슈 중 차선 후보를 우선 채택**한다.
+  - 활성 후보가 없으면 그 행은 `-`(SKIP) 로 두고 **`완료 티켓 OOО-NN 와만 매칭됨 — 확인요망`** 을 근거에 명시한다. (그 작업이 실제로 종료 티켓의 후속이면 사용자가 티켓 재오픈/신규 생성/다른 활성 티켓 지정 중 택한다.)
+  - 가안 표의 `확신` 칸에 완료 티켓이면 반드시 `완료(워크로그 부적절)` 를 표기해 사용자가 한눈에 알게 한다.
 
 추정 매핑 표를 **먼저** 보여준다 (가안):
 | 주제 그룹 | 추정 이슈 | 근거 | 확신 | 시간 | 코멘트(한 줄) |
@@ -216,52 +254,49 @@ TSV 컬럼: `KEY`(추정 이슈, 미정은 `-`) · `TIME_SPENT`(원본 그대로
 
 #### 5.4 사용자 검토·수정
 추정 가안을 보여주고 **틀린 매핑을 사용자가 고친다**. 확신 낮음/`-` 행은 반드시 확인 — `AskUserQuestion`(5.1 후보 top + Other 직접입력)으로 키를 받거나 SKIP 유지.
+- ⚠ 매핑된 이슈가 **완료 상태**인 행은 apply 전 **반드시 사용자에게 확인**한다(5.2 규칙). 사용자가 명시적으로 "그래도 그 완료 티켓에 달아라" 라고 하지 않는 한 그 행은 입력하지 않는다 — 활성 티켓 재지정 또는 SKIP 으로 처리.
 
 #### 5.5 apply
 확정된 TSV 에 `--apply` 추가해 실제 입력하고 OK/SKIP/FAIL 보고. **사용자 확인 없이 `--apply` 금지** (외부 반영 행위).
 
 ## 출력 포맷
 
-다음 마크다운 구조로 출력:
+**시각화·dry-run 은 표 대신 "간트 24h 축" 스타일로 그린다.** 코드블록(monospace) 안에서 문자만으로 렌더한다. 아래 구조를 따른다 (값은 예시 — 실제 데이터로 채움):
 
-```markdown
-# 워크로그 — {YYYY-MM-DD} ({요일})
-
-## 활동 시간대 (KST)
-- HH:MM — HH:MM ({Nh Mm}) · {env}
-- HH:MM — HH:MM ({Nh Mm}) · {env}
-- **총 활동: {합계}**
-
-## 하루 타임라인 (30분 슬롯)
-09:30 │██░░░░░░░░│  2   캘리브레이션 실패 패턴 진단 API 조사 + main rebase
-10:00 │████████░░│  8 ✦ FactoryReset persist 삭제 결정 + 실패마커 6/2/1 게이트 전환
-10:30 │██████████│ 10 ✦✦ debugUI Enter/Exit 연동·뷰모드 정정·can-inject 패킷
-11:00 │███░░░░░░░│  3 ✦ 코드리뷰·top 유지 정정·커밋
-11:30 │██░░░░░░░░│  2   PR 생성 + test plan + cleanup
-── 프롬프트 25 · 커밋 4 · █=밀도(max 10) ✦=커밋 ──
-
-## 프로젝트별
-| 프로젝트(cwd basename) | 활동시간 | prompts | commits | 브랜치 |
-|----|----|----|----|----|
-| avmc-app | 5h 10m | 12 | 2 | feat/calibration-debug-buttons |
-
-## 커밋
-- `75d7c29` [feat/calibration-debug-buttons] feat: Calibration 디버그 패널…
-- …
-
-## 주요 작업 주제
-1. {topic 1 — 1줄 요약}
-2. {topic 2}
-…
-
-## Jira 워크로그 가안 (추정 매핑)
-| 추정 이슈 | 확신 | 시간(h) | started (KST) | 한 줄 코멘트 |
-|----|----|----|----|----|
-| PROJ-42 | 높음 | 1h 30m | 2026-05-27 09:53 | cal 실패마커 6/2/1 게이트 전환 + cal 콘솔 명령 |
-| PROJ-50? | 낮음(확인요망) | 30m | 2026-05-27 10:27 | FactoryReset 4/1/1→4/4/1 롤백 |
-| - (미정) | — | 30m | 2026-05-27 11:11 | PR + cleanup (매칭 이슈 없음 → SKIP) |
 ```
-> 각 행이 워크로그 1건. 이슈 키는 **절차 5.1 조회 + 5.2 추정** 결과(위 키는 예시). `확신` 낮음/미정은 apply 전 반드시 사용자 확인. `시간(h)`은 30분 반올림 후 값.
+워크로그 · {YYYY-MM-DD} ({요일})                       활동 {합계} · 커밋 {N}
+
+           0    3    6    9    12   15   18   21   24
+          ┌────┬────┬────┬────┬────┬────┬────┬────┐
+ 코딩  ▓  │··················▓▓····························│ 09:33–10:14 · 41m
+ 회의  █  │································████············│ 16:00–17:00 · 1h
+ 점심  ▒  │························▒▒····················· │ 12:00–13:00 (회피)
+          └──────────────────────────────────────────┘
+
+ 주요 작업
+   ▸ {topic 1 — 1줄}
+   ▸ {topic 2}
+
+ DRY-RUN · jira worklog                       ▸ 30m grid · ⏎=apply
+ ▐ WDSW2D2510-296 ▌ ████░░░░  10:00  TCC8030 카메라0대 welcome 멈춤   진행중  ✔
+ ▐ WDSW2D2510-252 ▌ ████░░░░  09:30  keep_previous · 보드빌드         ⚠완료·보류
+ ▐ 타운홀미팅      ▌ ████████  16:00  타운홀미팅                       이슈미정
+ ▐ skip           ▌ ········  ──     {주제} ({사유})                  ∅
+ ────────────────────────────────────────────────────────────────────
+ 등록 예정 {전체KEY}({시간}) · 보류 {완료 전체KEY} · 확인 {미정/회의}
+```
+
+렌더 규칙:
+- **24h 축**: 폭 W(예: 44~48열). 각 행 막대의 시작/끝 열 = `round(hour/24*W)`. hour 는 **KST 소수시간**(절차 2-1 의 올바른 변환값; ⚠ UTC 로 그리지 말 것). 막대 문자: 코딩 `▓` · 회의 `█` · 점심/회피 `▒`, 빈칸 `·`.
+- 축 눈금(0·3·6·…·24)과 막대 영역의 좌측 경계 `│` 를 세로로 맞춘다.
+- **활동 시간대**(상단 우측 요약)와 각 막대 우측의 `HH:MM–HH:MM · 길이` 가 활동 시간 정보를 겸한다(별도 표 불필요).
+- **DRY-RUN 행**: `▐ KEY ▌` 배지 + `30m grid` 채움막대(`█`=소요, `░`=잔여 슬롯) + `STARTED` + 코멘트 + 상태 꼬리표.
+  - ⚠ 배지의 `KEY` 는 **전체 이슈 키**(예: `WDSW2D2510-296`)로 표기한다 — 숫자만(`296`) 줄이지 않는다(잘못된 이슈 입력 방지). 요약줄·근거 표기도 전체 키 사용.
+  - 상태 꼬리표: `진행중 ✔`(활성·등록예정) · `⚠완료·보류`(완료 티켓 — 5.2 규칙, 입력 안 함) · `이슈미정`(회의/매칭없음) · `∅`(SKIP).
+  - 완료(`⚠`) 행과 `이슈미정`/`∅` 행은 **apply 대상에서 제외**. 마지막 요약줄에 등록예정/보류/확인 건수를 적는다.
+- 커밋 목록이 필요하면 막대 아래 `커밋` 소제목으로 `sha [branch] subject` 를 간단히 덧붙인다(선택).
+
+> 각 DRY-RUN 행이 워크로그 1건. 이슈 키는 **절차 5.1 조회 + 5.2 추정** 결과(위 키는 예시). `⚠완료`·`이슈미정`·확신 낮음은 apply 전 반드시 사용자 확인. 시간은 30분 반올림 후 값.
 
 ## 인자 처리
 
