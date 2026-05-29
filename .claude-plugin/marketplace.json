@@ -7,7 +7,7 @@
   },
   "metadata": {
     "description": "개인용 Claude Code 플러그인 마켓플레이스",
-    "version": "3.2.1"
+    "version": "3.3.0"
   },
   "plugins": [
     {
@@ -21,8 +21,8 @@
       "description": "Claude Code 환경 동기화 — Gist 기반 upload/download로 플러그인, MCP, hooks, settings를 여러 PC에서 동일 유지"
     },
     {
-      "name": "worklog-today",
-      "source": "./plugins/worklog-today",
+      "name": "worklog",
+      "source": "./plugins/worklog",
       "description": "대화내역(Claude Code 트랜스크립트) 기반 일일 워크로그 — 30분 슬롯 타임라인 시각화 + jira CLI 워크로그 입력(dry-run/추정매핑/30분 반올림/겹침·점심 회피). hook 불필요."
     }
   ]

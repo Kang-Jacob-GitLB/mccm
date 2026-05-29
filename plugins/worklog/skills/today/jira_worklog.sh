@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# jira_worklog.sh — worklog-today 후보를 Jira 워크로그로 입력 (기본 dry-run)
+# jira_worklog.sh — 워크로그 후보를 Jira 워크로그로 입력 (기본 dry-run)
 #
 # ankitpokhrel/jira-cli 의 `jira issue worklog add` 를 감싼다. CLI 자체엔
 # dry-run 이 없으므로 이 스크립트가 게이팅한다: --apply 가 없으면 실행할
