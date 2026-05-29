@@ -14,8 +14,10 @@
 #   collect.sh YYYY-MM-DD            # 대상일(KST)
 #   collect.sh                       # 오늘(KST)
 # 옵션:
-#   --tz <IANA>   날짜 경계 해석 타임존 (기본 Asia/Seoul).
-#   --root <DIR>  트랜스크립트 루트 추가(반복 가능). 미지정 시 자동 탐지.
+#   --tz <IANA>     날짜 경계 해석 타임존 (기본 Asia/Seoul).
+#   --root <DIR>    트랜스크립트 루트 추가(반복 가능). 미지정 시 자동 탐지.
+#   --since <HH:MM> 대상일 내 그 로컬 시각 이후(>=) 이벤트만 출력.
+#   --until <HH:MM> 대상일 내 그 로컬 시각 이전(<) 이벤트만 출력.
 #   -h|--help
 #
 # 추출 규칙:
@@ -29,11 +31,15 @@ set -euo pipefail
 
 TZ_IANA="Asia/Seoul"
 DATE=""
+SINCE=""
+UNTIL=""
 EXTRA_ROOTS=()
 while [ $# -gt 0 ]; do
   case "$1" in
-    --tz)   TZ_IANA="${2:?}"; shift 2 ;;
-    --root) EXTRA_ROOTS+=("${2:?}"); shift 2 ;;
+    --tz)    TZ_IANA="${2:?}"; shift 2 ;;
+    --root)  EXTRA_ROOTS+=("${2:?}"); shift 2 ;;
+    --since) SINCE="${2:?}"; shift 2 ;;   # 대상일 내 HH:MM 이후만 (로컬)
+    --until) UNTIL="${2:?}"; shift 2 ;;   # 대상일 내 HH:MM 이전만 (로컬)
     -h|--help) sed -n '2,/^set -/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
     -*) echo "unknown arg: $1" >&2; exit 2 ;;
     *)  DATE="$1"; shift ;;
@@ -50,6 +56,10 @@ tz_setup "$TZ_IANA"
 # 대상일(로컬 TZ) 자정 ~ 익일 자정 → UTC epoch 경계
 START=$(tz_midnight "$DATE")
 END=$(( START + 86400 ))
+# --since/--until (대상일 내 HH:MM 로컬) → epoch 경계. 미지정이면 빈 문자열.
+SINCE_EPOCH=""; UNTIL_EPOCH=""
+[ -n "$SINCE" ] && SINCE_EPOCH=$(l2e "$DATE ${SINCE}:00" 2>/dev/null) || true
+[ -n "$UNTIL" ] && UNTIL_EPOCH=$(l2e "$DATE ${UNTIL}:00" 2>/dev/null) || true
 
 # 현재 머신 env 판별
 THIS_ENV="linux"
@@ -80,7 +90,8 @@ roots_tsv() {
   done
 }
 
-# jq 프로그램: 한 트랜스크립트 파일(slurp)에서 prompt/commit/session 이벤트 추출.
+# jq 프로그램(-n 모드): inputs 로 여러 트랜스크립트 파일을 한 번에 읽어
+# prompt/commit/session 이벤트 추출. input_filename 으로 파일경계를 보존한다.
 read -r -d '' JQPROG <<'JQ' || true
 def epoch($s): ($s | sub("\\.[0-9]+Z$";"Z") | fromdateiso8601);
 # 자동 생성/시스템 메시지(실제 입력 아님)는 prompt 에서 제외
@@ -106,26 +117,30 @@ def restext($rc):
   elif ($rc|type)=="array" then ([ $rc[]? | .text // empty ] | join("\n"))
   else "" end;
 
+# 여러 파일을 한 jq(-n)로 읽되, 각 라인에 출처 파일(__f)을 태깅해 파일경계를 보존한다.
+([ inputs | . + {__f: input_filename} ]) as $lines
+
 # git commit 을 실행한 tool_use id 집합
-(reduce .[] as $l ({};
+| (reduce $lines[] as $l ({};
    if $l.type=="assistant" then
      reduce ($l.message.content[]? | select((.type=="tool_use") and ((.name//"")|test("Bash")))) as $tu (.;
        if (($tu.input.command // "") | test("git[ \t]+commit")) then .[$tu.id]=true else . end)
    else . end)) as $cids
 
-# 그 날짜 범위 라인만
-| [ .[] | select((.timestamp // null) != null) | select((epoch(.timestamp)) as $e | $e >= $start and $e < $end) ] as $rows
-| ($rows | map(epoch(.timestamp))) as $eps
+# 그 날짜 범위 라인만 (__f 보존)
+| [ $lines[] | select((.timestamp // null) != null) | select((epoch(.timestamp)) as $e | $e >= $start and $e < $end) ] as $rows
 
-# session_start / session_stop (min/max)
-| ( if ($rows|length) > 0 then
-      ($rows[0]) as $f
-      | ($eps|min) as $mn | ($eps|max) as $mx
-      | ( {event:"session_start", epoch:$mn},
-          {event:"session_stop",  epoch:$mx} )
-      | . + {ts:(.epoch|todateiso8601), env:$env, session_id:($f.sessionId//""),
-             cwd:($f.cwd//""), branch:($f.gitBranch//"")}
-    else empty end )
+# session_start / session_stop = 파일(__f)별 min/max (종전 per-file 의미 그대로 유지).
+# 파일마다 jq 를 새로 띄우는 대신 input_filename 으로 파일을 구분 → 1회 처리로 동치 결과.
+| ( $rows
+    | group_by(.__f)
+    | .[]
+    | (map(epoch(.timestamp))) as $eps
+    | (.[0]) as $f
+    | ( {event:"session_start", epoch:($eps|min)},
+        {event:"session_stop",  epoch:($eps|max)} )
+    | . + {ts:(.epoch|todateiso8601), env:$env, session_id:($f.sessionId//""),
+           cwd:($f.cwd//""), branch:($f.gitBranch//"")} )
 ,
 # prompts + commits
 ( $rows[]
@@ -151,15 +166,23 @@ while IFS=$'\t' read -r env root; do
   [ -n "$root" ] || continue
   # 대상일 자정(로컬) 이후 수정된 파일만 (그 이전 파일엔 그 날 라인이 있을 수 없음).
   # @epoch 로 넘겨 tzdata 부재 환경에서도 경계가 어긋나지 않게 한다.
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
-    jq -c -s --argjson start "$START" --argjson end "$END" --arg env "$env" "$JQPROG" "$f" 2>/dev/null >> "$TMP" || true
-  done < <(find "$root" -type f -name '*.jsonl' -newermt "@$START" 2>/dev/null)
+  # 파일들을 모아 jq 를 루트당 1회만 띄운다 — 파일마다 jq 를 새로 spawn 하면
+  # Windows 에서 수십 회 프로세스 생성이 일어나 collect 의 주 병목이 된다.
+  files=()
+  while IFS= read -r f; do [ -n "$f" ] && files+=("$f"); done \
+    < <(find "$root" -type f -name '*.jsonl' -newermt "@$START" 2>/dev/null)
+  [ "${#files[@]}" -gt 0 ] || continue
+  jq -c -n --argjson start "$START" --argjson end "$END" --arg env "$env" \
+     "$JQPROG" "${files[@]}" 2>/dev/null >> "$TMP" || true
 done < <(roots_tsv)
 
-# commit 은 sha 로 dedup(최초 epoch 유지), 전체 epoch 오름차순 출력.
-jq -c -s '
-  ([ .[] | select(.event=="commit" and (.sha//"")!="") ] | group_by(.sha) | map(min_by(.epoch))) as $commits
+# commit 은 sha 로 dedup(최초 epoch 유지). --since/--until 지정 시 epoch 로 필터.
+# 전체 epoch 오름차순 출력.
+jq -c -s --arg since "${SINCE_EPOCH:-}" --arg until "${UNTIL_EPOCH:-}" '
+  (if $since=="" then null else ($since|tonumber) end) as $s
+  | (if $until=="" then null else ($until|tonumber) end) as $u
+  | ([ .[] | select(.event=="commit" and (.sha//"")!="") ] | group_by(.sha) | map(min_by(.epoch))) as $commits
   | ([ .[] | select(.event!="commit") ] + $commits)
+  | map(select( ($s==null or .epoch>=$s) and ($u==null or .epoch<$u) ))
   | sort_by(.epoch) | .[]
 ' "$TMP"
