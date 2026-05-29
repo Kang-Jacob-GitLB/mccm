@@ -8,6 +8,7 @@ allowed-tools: Bash, Read, Edit
 
 - mccm.json (gist): !`GIST_ID=$(gh api gists --jq '.[] | select(.files["mccm.json"] != null) | .id' 2>/dev/null | head -1); [ -n "$GIST_ID" ] && gh gist view "$GIST_ID" --filename mccm.json 2>/dev/null || echo "not found — gist에 mccm.json 파일이 없습니다"`
 - settings.json: !`cat "$HOME/.claude/settings.json" 2>/dev/null || echo "not found"`
+- ccstatusline: !`cat "$HOME/.config/ccstatusline/settings.json" 2>/dev/null || echo "not found"`
 
 ## 변수 치환 규칙
 
@@ -53,7 +54,24 @@ mccm.json의 `clis`를 확인한다.
 
 사용자가 거부한 항목은 스킵하고 완료 보고에 "스킵됨"으로 기록한다.
 
-### 4. settings
+### 4. ccstatusline 설정 복원
+
+mccm.json에 `ccstatusline.config` 객체가 있으면 위젯 디자인 본체를 `$HOME/.config/ccstatusline/settings.json`에 복원한다. (바이너리 설치는 3단계 `clis`에서, statusLine 연결은 5단계 `settings`에서 처리되므로 여기서는 디자인 본체만 다룬다.)
+
+- 로컬 파일이 **없으면**: `mkdir -p`로 디렉토리를 만든 뒤 바로 기록한다.
+- 로컬 파일이 mccm.json `config`와 **동일**하면: 스킵.
+- **다르면(충돌)**: 사용자에게 차이를 보여주고 물어본다:
+  - **(1) 취소** (기존 로컬 설정 유지) / **(2) 대치** (gist 설정으로 교체)
+  - 사용자 선택에 따라 적용한다.
+
+```bash
+GIST_ID=<선택된 gist id>
+mkdir -p "$HOME/.config/ccstatusline"
+gh gist view "$GIST_ID" --filename mccm.json | \
+  jq '.ccstatusline.config' > "$HOME/.config/ccstatusline/settings.json"
+```
+
+### 5. settings
 
 mccm.json의 `settings`를 settings.json과 비교한다. 변수 치환 적용 후 비교.
 
@@ -64,14 +82,16 @@ mccm.json의 `settings`를 settings.json과 비교한다. 변수 치환 적용 �
 - 선택지 제시: **(1) 취소** (기존 유지) / **(2) 대치** (mccm.json 값으로 교체)
 - 사용자 선택에 따라 적용
 
-### 5. mcpServers
+> `statusLine` 블록이 mccm.json에 있으면 settings.json에 반영한다. 단 이 블록은 ccstatusline 바이너리가 PATH에 있어야 정상 동작하므로, 3단계에서 ccstatusline 설치를 건너뛴/거부한 경우 statusLine 적용도 보류하고 사용자에게 알린다.
+
+### 6. mcpServers
 
 mccm.json의 `mcpServers`를 settings.json의 `mcpServers`와 비교한다. 변수 치환 적용.
 
 - 새 서버: 바로 추가
-- 기존 서버와 충돌: 4단계와 동일하게 사용자에게 물어본다
+- 기존 서버와 충돌: 5단계와 동일하게 사용자에게 물어본다
 
-### 6. hooks
+### 7. hooks
 
 mccm.json의 `hooks`를 settings.json의 `hooks`와 비교한다. 변수 치환 적용.
 
@@ -82,7 +102,7 @@ mccm.json의 `hooks`를 settings.json의 `hooks`와 비교한다. 변수 치환 
 
 사용자가 거부한 hook은 스킵하고 완료 보고에 "스킵됨"으로 기록한다.
 
-### 7. 로컬 전용 항목 감지 (완전 동기화)
+### 8. 로컬 전용 항목 감지 (완전 동기화)
 
 settings.json에는 있지만 mccm.json에는 없는 항목을 감지한다:
 
@@ -100,16 +120,17 @@ settings.json에는 있지만 mccm.json에는 없는 항목을 감지한다:
 - 플러그인: `claude plugin uninstall` 실행
 - mcpServers, hooks: settings.json에서 제거
 
-### 8. settings.json 저장
+### 9. settings.json 저장
 
 모든 변경을 적용하여 `$HOME/.claude/settings.json`에 저장한다.
 
 Read 도구로 파일을 읽고, 변경 사항을 Edit 도구로 적용한다.
 
-### 9. 완료 보고
+### 10. 완료 보고
 
 - 등록/업데이트된 마켓플레이스
 - 설치/업데이트된 플러그인
+- 복원된 ccstatusline 설정 (라인/항목 수, 충돌 해결 결과)
 - 병합된 settings 항목
 - 추가된 mcpServers
 - 추가된 hooks
