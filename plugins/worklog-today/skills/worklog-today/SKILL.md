@@ -1,6 +1,6 @@
 ---
 name: worklog-today
-description: Claude Code 세션 트랜스크립트(~/.claude/projects)에서 오늘(또는 지정일) 작업 내역을 읽어 시간대·프로젝트·커밋·prompt 주제로 요약하고 Jira worklog 입력 후보 표를 생성. 선택적으로 jira CLI 로 워크로그를 dry-run 미리보기/실제 입력까지 수행. hook 불필요. "오늘 워크로그", "오늘 한 일 정리", "워크로그 요약", "worklog today", "어제 워크로그", "지난주 워크로그", "jira 워크로그 입력", "워크로그 등록 dry-run" 등에 사용.
+description: Claude Code 세션 트랜스크립트(~/.claude/projects)에서 오늘(또는 지정일) 작업 내역을 읽어 시간대·프로젝트·커밋·prompt 주제로 요약하고 Jira worklog 입력 후보 표를 생성. 선택적으로 jira CLI 로 워크로그를 dry-run 미리보기/실제 입력까지 수행. gws-cli(권장) 연동 시 Google Calendar 회의 일정을 병합해 회의 시간도 워크로그로 인지. hook 불필요. "오늘 워크로그", "오늘 한 일 정리", "워크로그 요약", "worklog today", "어제 워크로그", "지난주 워크로그", "jira 워크로그 입력", "워크로그 등록 dry-run" 등에 사용.
 ---
 
 # 오늘 워크로그 요약
@@ -9,6 +9,48 @@ description: Claude Code 세션 트랜스크립트(~/.claude/projects)에서 오
 Claude Code 가 **세션마다 자동으로 남기는 트랜스크립트**(`~/.claude/projects/<cwd-slug>/<session-id>.jsonl`)를 읽어 하루치 작업을 정리한다. 별도 hook 설치가 **필요 없다** — Claude Code 가 항상 기록하는 대화 로그를 직접 파싱한다. 최종 출력은 사람이 Jira worklog 에 그대로 옮길 수 있는 표를 포함한다.
 
 > 과거 버전은 `UserPromptSubmit`/`PostToolUse`/`SessionStart/Stop` hook 이 쌓은 `worklog-*.jsonl` 을 읽었으나, 동일 정보가 Claude Code 트랜스크립트에 이미 들어있어 hook 의존을 제거했다. 새 머신에서도 셋업 0 으로 바로 동작한다.
+
+## 요구사항 (사전 준비)
+이 스킬의 **핵심 요약 기능**(절차 1~4: 활동 수집·타임라인·주제 요약)은 Claude Code 트랜스크립트만 읽으므로 **추가 설치가 전혀 필요 없다**. 아래 도구는 **확장 기능**에만 필요하다.
+
+| 도구 | 등급 | 용도 | 미설치 시 동작 |
+|---|---|---|---|
+| **jira CLI** (`jira`) | **필수** (워크로그 입력 시) | 절차 5 — Jira 워크로그 dry-run/실제 입력 | 아래 설치 가이드 안내 후 **입력 단계 중단** (요약은 정상 출력) |
+| **gws-cli** | **권장** | 절차 2-2 — Google Calendar 회의 일정 병합 (회의 시간을 워크로그로 인지·겹침회피) | 설치 **권장 안내**만 하고 **캘린더 없이 진행** (작업 트랜스크립트 기반으로만 요약) |
+
+> 원칙: 스킬 진입 시 필요한 CLI 가 없으면 **묻기 전에 먼저 `command -v` 로 존재 확인** → 없으면 등급에 맞게 (필수=중단+가이드 / 권장=안내 후 스킵) 처리. 토큰·비밀번호는 출력·스킬에 **절대 하드코딩 금지** (env/config 참조만).
+
+### jira CLI (필수 — 워크로그 입력용)
+```bash
+command -v jira >/dev/null || echo "jira CLI 미설치"
+```
+**설치** (ankitpokhrel/jira-cli):
+- Windows: `scoop install jira-cli` 또는 [릴리스](https://github.com/ankitpokhrel/jira-cli/releases)에서 `jira_*_windows_x86_64.zip` 받아 PATH 에 추가
+- macOS: `brew install ankitpokhrel/jira-cli/jira-cli`
+- Go: `go install github.com/ankitpokhrel/jira-cli/cmd/jira@latest`
+
+**환경 구성**:
+1. Atlassian API 토큰 발급: <https://id.atlassian.com/manage-profile/security/api-tokens>
+2. 토큰을 env 로 노출 (PowerShell: `$env:JIRA_API_TOKEN="..."`, bash: `export JIRA_API_TOKEN=...`). 영구 적용은 셸 프로파일/시스템 환경변수에 등록.
+3. `jira init` → 서버 URL(예: `https://your-org.atlassian.net`) + 로그인 이메일 입력. config 는 `~/.config/.jira/.config.yml` 에 저장.
+4. 검증: `jira me` 가 본인 계정을 출력하면 정상. (절차 5.0 의 사전 확인과 동일.)
+
+### gws-cli (권장 — 회의 일정 병합용)
+```bash
+command -v gws-cli >/dev/null || echo "gws-cli 미설치 — 회의 병합 기능은 건너뜀(권장 설치)"
+```
+**설치** (Python 패키지, Python 3.10+):
+- `pip install gws-cli`  (또는 격리 설치 `pipx install gws-cli`)
+- 검증: `gws-cli --version`
+
+**환경 구성** (Google OAuth):
+1. [Google Cloud Console](https://console.cloud.google.com/)에서 프로젝트 생성 → **Google Calendar API** 사용 설정.
+2. OAuth 클라이언트 ID(애플리케이션 유형: **데스크톱 앱**) 생성 → `client_secret.json` 다운로드.
+3. 자격증명 가져오기(암호화 저장): `gws-cli auth import-credentials <client_secret.json 경로>`
+4. 인증(브라우저 OAuth 동의): `gws-cli auth`  — 토큰은 `~/.config/gws-cli/token.json` 에 저장.
+5. 검증: `gws-cli auth status` 가 `authenticated` 이면 정상. 다계정은 `--account <이름>` 또는 `GWS_ACCOUNT` env.
+
+> 회사가 OAuth 릴레이 서버를 운영하면 `gws-cli auth server-login` + `gws-cli config set-mode server` 로도 인증 가능.
 
 ## 주 용도: 퇴근 전 일일 루틴
 이 스킬의 1차 목적은 **매일 퇴근 전 1회 호출로 Jira 워크로그 입력을 반자동화**하는 것이다. 표준 흐름:
@@ -79,9 +121,30 @@ jq -r 'select(.event=="prompt" or .event=="commit")
 ```
 검증: 출력 첫 시각이 상식적 업무시간대(예: 오전 9~10시)와 맞는지 확인. 12시간 어긋나면 이중변환 의심.
 
+### 2-2. (선택·권장) 회의 일정 병합 — gws-cli
+`gws-cli` 가 설치·인증돼 있으면 그날 Google Calendar 회의를 가져와 타임라인·워크로그 후보에 합친다. **없으면 이 단계를 조용히 건너뛰고** 트랜스크립트 기반으로만 진행한다(권장 안내 1회).
+
+```bash
+command -v gws-cli >/dev/null && gws-cli auth status >/dev/null 2>&1 || {
+  echo "gws-cli 미설치/미인증 → 회의 병합 생략 (요구사항 섹션의 gws-cli 가이드 참고, 권장)"; }
+# 그날 회의 조회 (KST). 시간 플래그는 --from/--to (ISO8601), -n 으로 개수 상향.
+gws-cli calendar list --from "${DATE}T00:00:00+09:00" \
+                      --to "${DATE}T23:59:59+09:00" -n 50
+```
+- ⚠ `gws-cli`(Python)의 `calendar list` 에는 `--format json` 옵션이 **없다**(출력은 사람이 읽는 표 형식). Claude 가 그 출력에서 각 이벤트의 **시작·종료 시각·제목·참석여부**를 읽어 정규화한다. (npm `gws calendar events list --format json` 이 설치돼 있으면 JSON 으로 받아 파싱해도 된다.)
+- 읽어낸 각 회의를 `collect.sh` 와 **동일 스키마**의 라인으로 정규화해 `today.jsonl` 에 합친다 (event 종류는 `meeting`):
+  ```json
+  {"ts":"ISO8601(UTC)","env":"gcal","event":"meeting","subject":"<회의 제목>","epoch":<시작 UTC초>,"end_epoch":<종료 UTC초>}
+  ```
+- 종일(all-day)·참석 거절(RSVP=`declined`) 이벤트는 제외. 본인이 주최/수락한 회의만 활동으로 인정.
+- 병합 후 효과:
+  - **타임라인**: 회의 구간을 별도 마커(예: `▣`)로 표기해 코딩 작업과 구분.
+  - **활동 시간대**: 회의 구간도 활동으로 합산(트랜스크립트 공백 시간이 회의로 설명됨).
+  - **워크로그 후보**: 회의 자체를 1건의 후보(예: "회의: <제목> 1h")로 제안. 절차 5 의 **겹침회피**에서 회의 구간을 "이미 찬 구간"으로 넘겨, 코딩 워크로그 시작시각이 회의와 안 겹치게 자동 배치(점심시간 회피와 동일 메커니즘).
+
 ### 3. 섹션별 분석
 모은 라인을 다음 묶음으로 분류:
-- **활동 시간대**: `session_start`/`session_stop`(세션파일별 min/max) 구간의 합집합. 동시 진행 세션은 겹치는 구간을 한 번만 카운트.
+- **활동 시간대**: `session_start`/`session_stop`(세션파일별 min/max) 구간의 합집합. 동시 진행 세션은 겹치는 구간을 한 번만 카운트. (절차 2-2 로 병합한 `event=="meeting"` 구간도 활동에 포함.)
 - **프로젝트별 통계**: `cwd` basename 으로 그룹(워크트리는 별도 slug 로 보일 수 있음). 각 그룹의 prompt 수, commit 수, 첫/마지막 활동 시각.
 - **커밋 목록**: `event=="commit"` 라인. SHA(short) + branch + subject 한 줄.
 - **prompt 주제 요약**: Claude 가 prompt 본문들을 읽고 5-10 줄로 의미 단위 요약(질문/검토/디버깅/문서작성/etc.). 잡담/오타/한 글자 입력·슬래시 명령 노이즈는 제외.
@@ -146,7 +209,7 @@ TSV 컬럼: `KEY`(추정 이슈, 미정은 `-`) · `TIME_SPENT`(원본 그대로
 
 **시작시각 처리** (스크립트가 자동):
 - `TIME_SPENT` 와 마찬가지로 `STARTED` 도 30분 그리드로 nearest 반올림 (예: 09:53 → 10:00).
-- **겹침회피(기본 켬)**: 같은 날 내가 이미 단 워크로그 구간 **+ 점심시간(기본 12:00–13:00)** 을 피해, 새 워크로그가 겹치면 빈 슬롯(다음 그리드)으로 STARTED 를 밀어낸다. 연속 입력 행끼리도 누적해 안 겹치게 한다. `--overlap-ok` 로 겹침회피를, `--lunch none` 으로 점심회피를 끈다.
+- **겹침회피(기본 켬)**: 같은 날 내가 이미 단 워크로그 구간 **+ 점심시간(기본 12:00–13:00) + (절차 2-2 병합 시) 회의 구간** 을 피해, 새 워크로그가 겹치면 빈 슬롯(다음 그리드)으로 STARTED 를 밀어낸다. 연속 입력 행끼리도 누적해 안 겹치게 한다. `--overlap-ok` 로 겹침회피를, `--lunch none` 으로 점심회피를 끈다.
   - jira-cli 에 worklog 조회가 없어 워크로그 조회는 **REST API** 사용: config 의 `server`·`login` + `JIRA_API_TOKEN` env. ⚠ 구 `/rest/api/3/search` 는 **삭제(HTTP 410)** — 이슈 검색은 `jira issue list --jql` (CLI) 로, 각 이슈 워크로그는 `GET /rest/api/3/issue/{key}/worklog` 로 조회. 자격이 없으면 회피 없이 진행.
   - 조회 범위: `worklogAuthor = currentUser() AND worklogDate = "<그 날>"` 로 내 당일 워크로그가 있는 이슈를 찾아 각 이슈의 내 워크로그 구간을 모은다.
   - 예: 오전(09:30–12:00)이 이미 차 있으면 1h30m 워크로그는 점심을 건너뛰어 13:00–14:30 으로 배치된다.
