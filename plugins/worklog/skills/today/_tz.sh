@@ -73,3 +73,14 @@ tz_today() {
 }
 # 로컬 날짜의 자정 epoch
 tz_midnight() { l2e "$1 00:00:00"; }
+
+# 외부 도구(jira-cli 등)에 넘길 UTC 오프셋 문자열.
+#  - native 모드(tzdata 동작): "" → 호출부가 --timezone <IANA> 를 그대로 쓰면 됨.
+#  - offset 모드(tzdata 부재): "+0900" 형태. jira-cli 는 IANA --timezone 을 거부하므로
+#    started 값에 이 오프셋을 직접 부착하고 --timezone 을 생략하는 데 쓴다.
+tz_offset_str() {
+  [ "${TZ_MODE:-native}" = native ] && { echo ""; return; }
+  local o=${TZ_OFF:-0} sign=+
+  [ "$o" -lt 0 ] && { sign=-; o=$(( -o )); }
+  printf '%s%02d%02d' "$sign" $(( o/3600 )) $(( (o%3600)/60 ))
+}

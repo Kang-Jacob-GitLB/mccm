@@ -207,8 +207,18 @@ while IFS=$'\t' read -r KEY TIME STARTED COMMENT || [ -n "${KEY:-}" ]; do
     BUSY+=("$new_epoch:$((new_epoch + rnd_min*60))")   # 이후 행과도 안 겹치게 누적
   fi
 
+  # tzdata 부재(offset) 환경에선 jira-cli 가 IANA --timezone 을 거부한다
+  # ("timezone should be a valid IANA timezone"). 이때는 --timezone 을 생략하고
+  # started 에 오프셋(예: +0900)을 직접 부착한다(jira datetime 형식). native 환경은 종전대로.
+  off=$(tz_offset_str)
+  if [ -n "$off" ]; then
+    started_arg="${STARTED/ /T}.000${off}"; tz_args=()
+  else
+    started_arg="$STARTED"; tz_args=(--timezone "$TZ_IANA")
+  fi
+
   if [ "$APPLY" -eq 1 ]; then
-    args=("$KEY" "$TIME" --started "$STARTED" --timezone "$TZ_IANA" --comment "$COMMENT" --no-input)
+    args=("$KEY" "$TIME" --started "$started_arg" ${tz_args[@]+"${tz_args[@]}"} --comment "$COMMENT" --no-input)
     [ -n "$PROJECT" ] && args=(-p "$PROJECT" "${args[@]}")
     if jira issue worklog add "${args[@]}" >/dev/null 2>"$errf"; then
       echo "OK    $KEY  $TIME  @${STARTED}  — ${COMMENT}${rnd_note}"
@@ -220,8 +230,9 @@ while IFS=$'\t' read -r KEY TIME STARTED COMMENT || [ -n "${KEY:-}" ]; do
   else
     proj_prefix=""
     [ -n "$PROJECT" ] && proj_prefix="-p $(sq "$PROJECT") "
-    printf 'DRY   jira issue worklog add %s%s %s --started %s --timezone %s --comment %s --no-input%s\n' \
-      "$proj_prefix" "$(sq "$KEY")" "$(sq "$TIME")" "$(sq "$STARTED")" "$(sq "$TZ_IANA")" "$(sq "$COMMENT")" "$rnd_note"
+    tz_show=""; [ "${#tz_args[@]}" -gt 0 ] && tz_show=" --timezone $(sq "$TZ_IANA")"
+    printf 'DRY   jira issue worklog add %s%s %s --started %s%s --comment %s --no-input%s\n' \
+      "$proj_prefix" "$(sq "$KEY")" "$(sq "$TIME")" "$(sq "$started_arg")" "$tz_show" "$(sq "$COMMENT")" "$rnd_note"
   fi
 done
 
