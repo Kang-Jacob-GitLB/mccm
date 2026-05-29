@@ -1,5 +1,5 @@
 ---
-name: worklog-today
+name: today
 description: Claude Code 세션 트랜스크립트(~/.claude/projects)에서 오늘(또는 지정일) 작업 내역을 읽어 시간대·프로젝트·커밋·prompt 주제로 요약하고 Jira worklog 입력 후보 표를 생성. 선택적으로 jira CLI 로 워크로그를 dry-run 미리보기/실제 입력까지 수행. gws(권장, npm `@googleworkspace/cli`) 연동 시 Google Calendar 회의 일정을 병합해 회의 시간도 워크로그로 인지. hook 불필요. "오늘 워크로그", "오늘 한 일 정리", "워크로그 요약", "worklog today", "어제 워크로그", "지난주 워크로그", "jira 워크로그 입력", "워크로그 등록 dry-run" 등에 사용.
 ---
 
@@ -96,7 +96,7 @@ Claude Code 는 모든 세션을 다음 위치에 JSONL 로 기록한다 — 이
 ```bash
 # 이 스킬 디렉토리 자동 탐색 — 플러그인 캐시/로컬 스킬 어디에 설치됐든 동작.
 SKILL_DIR="$(dirname "$(find "$HOME/.claude/plugins/cache" "$HOME/.claude/skills" \
-  -name collect.sh -path '*worklog-today*' 2>/dev/null | head -1)")"
+  -name collect.sh -path '*/skills/today/collect.sh' 2>/dev/null | sort -r | head -1)")"
 DATE="2026-05-26"                      # 대상일(KST). 생략하면 오늘.
 "$SKILL_DIR/collect.sh" "$DATE" > today.jsonl
 #  - 자동으로 ~/.claude/projects (+ WSL 이면 Windows 측) 전 프로젝트를 훑어

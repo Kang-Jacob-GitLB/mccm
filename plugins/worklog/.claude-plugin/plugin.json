@@ -1,6 +1,6 @@
 {
-  "name": "worklog-today",
-  "version": "1.0.2",
+  "name": "worklog",
+  "version": "2.0.0",
   "description": "대화내역(Claude Code 트랜스크립트) 기반 일일 워크로그 — 30분 슬롯 타임라인 시각화 + jira CLI 워크로그 입력(dry-run/추정매핑/30분 반올림/겹침·점심 회피). hook 불필요.",
   "author": {
     "name": "jacob",
