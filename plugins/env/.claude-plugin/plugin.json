@@ -1,6 +1,6 @@
 {
   "name": "env",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Claude Code 환경 동기화 — Gist 기반 upload/download로 플러그인, MCP, hooks, settings, ccstatusline을 여러 PC에서 동일 유지",
   "author": {
     "name": "jacob",
