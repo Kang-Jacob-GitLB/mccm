@@ -52,6 +52,10 @@ settings.json에서 아래 섹션을 추출한다:
 
 파일이 없으면 `ccstatusline` 필드와 clis 항목을 추가하지 않는다(기존 값이 있으면 보존).
 
+> **⚠️ 글리프 주의 (필독):** `ccstatusline.config`의 `powerline.separators / startCaps / endCaps` 에는 화면상 **빈 칸으로 보이는 Nerd Font PUA 글리프**(U+E0B0~U+E0BF 등)가 들어 있다. 모델이 이 내용을 Read로 읽어 mccm.json 텍스트에 **옮겨 적으면 글리프가 빈 문자열로 소실**되고, 그대로 업로드하면 **gist(단일 진실원)가 오염**되어 이후 모든 PC의 `/download`에 빈 값이 퍼진다.
+> - `ccstatusline.config`는 **절대 전사하지 않는다.** 7단계에서 파일 바이트를 `jq`로 그대로 주입한다.
+> - 업로드 후 gist의 글리프가 로컬과 일치하는지 **반드시 검증**한다(7단계).
+
 ### 3. 변수 치환 (역방향)
 
 모든 문자열 값에서 머신 의존 경로를 `${HOME}`, `${USER}` 변수로 교체한다. `ccstatusline.config`는 보통 경로를 포함하지 않으나, 포함된 경우 동일 규칙을 적용한다.
@@ -89,6 +93,8 @@ settings.json에서 아래 섹션을 추출한다:
 }
 ```
 
+> `ccstatusline.config`를 제외한 본문(marketplaces/plugins/clis/mcpServers/hooks/settings)은 settings.json에서 추출한 일반 JSON이라 모델이 조립해도 된다. 단 **`ccstatusline.config`는 여기서 값을 채워 넣지 말고 비워 두거나 생략**하고, 7단계에서 로컬 파일을 `jq`로 주입한다(글리프 보존).
+
 ### 6. 사용자 확인
 
 생성된 mccm.json 내용을 사용자에게 보여주고 확인을 받는다.
@@ -111,18 +117,38 @@ settings.json에서 아래 섹션을 추출한다:
 - **1개**: 해당 gist를 업데이트한다.
 - **2개 이상**: ID와 description을 목록으로 보여주고 사용자에게 선택을 받는다. `head -1`으로 자동 선택하지 않는다.
 
+> **⚠️ `ccstatusline.config`는 heredoc에 직접 적지 않는다.** PUA 글리프가 전사 과정에서 소실되기 때문이다. 본문은 heredoc으로 쓰되 `ccstatusline.config`는 로컬 파일에서 `jq`로 주입한다.
+
 ```bash
-cat > /tmp/mccm.json <<'EOF'
-{생성된 mccm.json 내용}
+CCSL="$HOME/.config/ccstatusline/settings.json"
+
+# 1) ccstatusline.config를 제외/비운 본문을 heredoc으로 작성 (글리프 없는 부분만 모델이 조립)
+cat > /tmp/mccm-base.json <<'EOF'
+{생성된 mccm.json 내용 — "ccstatusline" 필드는 생략}
 EOF
 
-# GIST_ID는 위 선택 과정에서 결정된 값
+# 2) ccstatusline.config는 로컬 파일 바이트를 jq로 주입 (전사 금지 → 글리프 보존)
+if [ -f "$CCSL" ]; then
+  jq --slurpfile ccsl "$CCSL" '.ccstatusline = {config: $ccsl[0]}' /tmp/mccm-base.json > /tmp/mccm.json
+else
+  cp /tmp/mccm-base.json /tmp/mccm.json
+fi
+
+# 3) gist 반영 (GIST_ID는 위 선택 과정에서 결정된 값)
 if [ -n "$GIST_ID" ]; then
   gh gist edit "$GIST_ID" --filename mccm.json --add /tmp/mccm.json
 else
-  gh gist create /tmp/mccm.json --desc "mccm env"
+  GIST_ID=$(gh gist create /tmp/mccm.json --desc "mccm env" 2>&1 | grep -oE '[0-9a-f]{20,}' | head -1)
 fi
-rm -f /tmp/mccm.json
+
+# 4) 업로드 후 검증: gist의 ccstatusline.config가 로컬 파일과 바이트 동일한지 (글리프 포함)
+if [ -f "$CCSL" ]; then
+  diff <(gh gist view "$GIST_ID" --filename mccm.json | jq -S '.ccstatusline.config') \
+       <(jq -S . "$CCSL") >/dev/null \
+    && echo "업로드 검증 OK (글리프 포함 일치)" \
+    || echo "⚠️ 글리프 소실/불일치 — 본문에 config를 적지 말고 jq 주입으로 재시도"
+fi
+rm -f /tmp/mccm-base.json /tmp/mccm.json
 ```
 
 ### 8. 완료 보고

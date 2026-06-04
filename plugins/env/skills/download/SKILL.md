@@ -58,17 +58,36 @@ mccm.json의 `clis`를 확인한다.
 
 mccm.json에 `ccstatusline.config` 객체가 있으면 위젯 디자인 본체를 `$HOME/.config/ccstatusline/settings.json`에 복원한다. (바이너리 설치는 3단계 `clis`에서, statusLine 연결은 5단계 `settings`에서 처리되므로 여기서는 디자인 본체만 다룬다.)
 
+> **⚠️ 글리프 주의 (필독):** `ccstatusline.config`의 `powerline.separators / startCaps / endCaps` 에는 화면상 **빈 칸으로 보이는 Nerd Font PUA 글리프**(U+E0B0~U+E0BF 등)가 들어 있다. Read·Edit·수기 전사로 다루면 글리프가 보이지 않아 **빈 문자열로 소실**된다.
+> - 이 파일은 **반드시 아래 `jq` 파이프로 전체 덮어쓰기**한다. Read·Edit·수기 전사 금지.
+> - "한 필드만 다른 것 같아도" 부분 Edit 하지 말고 **무조건 전체를 `jq`로 다시 쓴다** (gist가 이 파일의 단일 진실원).
+> - 동일/다름 판정도 눈이 아니라 **바이트로** 한다(아래 `diff`).
+
 - 로컬 파일이 **없으면**: `mkdir -p`로 디렉토리를 만든 뒤 바로 기록한다.
-- 로컬 파일이 mccm.json `config`와 **동일**하면: 스킵.
+- 로컬 파일이 mccm.json `config`와 **동일**하면(아래 `diff`가 무출력): 스킵.
 - **다르면(충돌)**: 사용자에게 차이를 보여주고 물어본다:
   - **(1) 취소** (기존 로컬 설정 유지) / **(2) 대치** (gist 설정으로 교체)
   - 사용자 선택에 따라 적용한다.
 
 ```bash
 GIST_ID=<선택된 gist id>
+DST="$HOME/.config/ccstatusline/settings.json"
+
+# 동일/다름 판정 (바이트 비교 — 보이지 않는 글리프 차이까지 잡힘)
+diff <(gh gist view "$GIST_ID" --filename mccm.json | jq -S '.ccstatusline.config') \
+     <(jq -S . "$DST" 2>/dev/null) >/dev/null \
+  && { echo "동일 → 스킵"; } \
+  || echo "다름 → (사용자 확인 후) 대치"
+
+# 대치(또는 신규): 전체 덮어쓰기로만 기록 — 절대 전사/Edit 하지 않는다 (글리프 보존)
 mkdir -p "$HOME/.config/ccstatusline"
-gh gist view "$GIST_ID" --filename mccm.json | \
-  jq '.ccstatusline.config' > "$HOME/.config/ccstatusline/settings.json"
+gh gist view "$GIST_ID" --filename mccm.json | jq '.ccstatusline.config' > "$DST"
+
+# 기록 후 검증: 로컬이 gist와 바이트 동일한지 재확인 (글리프 포함)
+diff <(gh gist view "$GIST_ID" --filename mccm.json | jq -S '.ccstatusline.config') \
+     <(jq -S . "$DST") >/dev/null \
+  && echo "검증 OK (글리프 포함 일치)" \
+  || echo "⚠️ 불일치 — jq 파이프로 재시도(전사 금지)"
 ```
 
 ### 5. settings
