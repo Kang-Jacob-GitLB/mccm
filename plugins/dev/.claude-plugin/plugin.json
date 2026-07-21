@@ -1,13 +1,24 @@
 {
   "name": "dev",
-  "version": "1.0.0",
-  "description": "개인 개발 스킬팩 — Git 워크플로우, 문서 변환",
+  "version": "1.1.0",
+  "description": "개인 개발 스킬팩 — Git 워크플로우, 문서 변환, 서브에이전트 모델 티어링",
   "author": {
     "name": "jacob",
     "email": "jacob@litbig.com"
   },
   "license": "MIT",
-  "keywords": ["git", "commit", "pull-request", "cleanup", "workflow", "markdown", "pdf", "google-docs"],
+  "keywords": [
+    "git",
+    "commit",
+    "pull-request",
+    "cleanup",
+    "workflow",
+    "markdown",
+    "pdf",
+    "google-docs",
+    "subagent",
+    "model-routing"
+  ],
   "skills": "./skills/",
   "hooks": {
     "SessionStart": [
@@ -17,6 +28,10 @@
           {
             "type": "command",
             "command": "claude plugin marketplace update mccm 2>/dev/null; true"
+          },
+          {
+            "type": "command",
+            "command": "cat \"${CLAUDE_PLUGIN_ROOT}/model-routing.md\" 2>/dev/null; true"
           }
         ]
       }
