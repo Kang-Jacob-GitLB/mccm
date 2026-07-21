@@ -1,6 +1,6 @@
 ---
 name: download
-description: Gist의 mccm.json을 로컬 settings.json에 적용한다. "/download", "환경 다운로드", "download env" 등의 요청에 사용한다.
+description: Gist의 mccm.json을 로컬 settings.json과 전역 CLAUDE.md에 적용한다. "/download", "환경 다운로드", "download env" 등의 요청에 사용한다.
 allowed-tools: Bash, Read, Edit
 ---
 
@@ -9,6 +9,7 @@ allowed-tools: Bash, Read, Edit
 - mccm.json (gist): !`GIST_ID=$(gh api gists --jq '.[] | select(.files["mccm.json"] != null) | .id' 2>/dev/null | head -1); [ -n "$GIST_ID" ] && gh gist view "$GIST_ID" --filename mccm.json 2>/dev/null || echo "not found — gist에 mccm.json 파일이 없습니다"`
 - settings.json: !`cat "$HOME/.claude/settings.json" 2>/dev/null || echo "not found"`
 - ccstatusline: !`cat "$HOME/.config/ccstatusline/settings.json" 2>/dev/null || echo "not found"`
+- CLAUDE.md: !`f="$HOME/.claude/CLAUDE.md"; [ -f "$f" ] && echo "존재 ($(wc -l < "$f") 줄) — 내용은 전사하지 말고 jq 파이프로 복원" || echo "not found"`
 
 ## 변수 치환 규칙
 
@@ -145,7 +146,56 @@ settings.json에는 있지만 mccm.json에는 없는 항목을 감지한다:
 
 Read 도구로 파일을 읽고, 변경 사항을 Edit 도구로 적용한다.
 
-### 10. 완료 보고
+### 10. CLAUDE.md 복원
+
+mccm.json에 `claudeMd` 문자열이 있으면 `$HOME/.claude/CLAUDE.md`에 복원한다.
+
+> **⚠️ 전사 금지:** `ccstatusline.config`와 같은 이유다. 모델이 읽어 옮겨 적으면 줄바꿈·들여쓰기가 어긋나거나 긴 내용이 잘린다. **`jq -r` 파이프로 전체 덮어쓰기**만 한다. 부분 Edit 금지 — gist가 단일 진실원이다.
+
+- 로컬 파일이 **없으면**: 바로 기록한다.
+- **동일**하면(아래 `diff`가 무출력): 스킵.
+- **다르면(충돌)**: 차이를 보여주고 물어본다 — **(1) 취소**(로컬 유지) / **(2) 대치**(gist로 교체).
+
+플러그인이 hook으로 주입하는 정책(예: `mccm/dev`의 `model-routing.md`)은 CLAUDE.md에 들어 있지 않다. 로컬 CLAUDE.md에 그런 내용이 남아 있으면 중복이니 사용자에게 알린다.
+
+```bash
+GIST_ID=<선택된 gist id>
+DST="$HOME/.claude/CLAUDE.md"
+gh gist view "$GIST_ID" --filename mccm.json > /tmp/mccm.json
+
+# 0) 가드 — claudeMd 가 없거나 null 이면 아무것도 하지 않는다.
+#    이 가드가 없으면 jq 가 리터럴 "null" 을 출력해 로컬 CLAUDE.md 를 파괴하고,
+#    다음 upload 가 그 "null" 을 gist 에 올려 모든 PC 로 퍼진다.
+if [ "$(jq -r 'has("claudeMd") and (.claudeMd != null)' /tmp/mccm.json)" != "true" ]; then
+  echo "gist 에 claudeMd 없음 → 건너뜀 (로컬 CLAUDE.md 를 건드리지 않는다)"
+else
+  # 1) 세 갈래를 명시적으로 구분한다: 없음 / 동일 / 다름.
+  #    비교는 원시 바이트가 아니라 JSON 값끼리 한다 — jq 의 raw 출력은
+  #    플랫폼에 따라 줄바꿈이 달라져 바이트 비교가 상시 "다름"으로 나온다.
+  if [ ! -f "$DST" ]; then
+    STATE="없음"
+  elif diff <(jq '.claudeMd' /tmp/mccm.json) <(sed 's/$//' "$DST" | jq -Rs .) >/dev/null; then
+    STATE="동일"
+  else
+    STATE="다름"
+  fi
+  echo "판정: $STATE"
+
+  # 2) "없음"이면 바로 기록, "다름"이면 사용자 확인 후 기록, "동일"이면 스킵.
+  #    기록은 전체 덮어쓰기로만 — 전사/부분 Edit 금지.
+  #    쓸 때 LF 로 정규화한다(Windows jq 는 raw 출력에서 CRLF 를 낸다).
+  if [ "$STATE" != "동일" ]; then
+    mkdir -p "$HOME/.claude"
+    jq -j '.claudeMd' /tmp/mccm.json | sed 's/$//' > "$DST"
+
+    # 3) 기록 후 검증
+    diff <(jq '.claudeMd' /tmp/mccm.json) <(sed 's/$//' "$DST" | jq -Rs .) >/dev/null       && echo "검증 OK (원문 일치)"       || echo "⚠️ 불일치 — jq 파이프로 재시도(전사 금지)"
+  fi
+fi
+rm -f /tmp/mccm.json
+```
+
+### 11. 완료 보고
 
 - 등록/업데이트된 마켓플레이스
 - 설치/업데이트된 플러그인
