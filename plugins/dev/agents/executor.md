@@ -2,6 +2,7 @@
 name: executor
 description: 명세가 분명한 코드 수정을 수행하는 구현 에이전트. 단일~소수 파일 단위의 기능 추가, 버그 수정, 리팩터링, 패턴 반복 적용에 사용한다. 무엇을 만들지 이미 정해진 작업에 쓴다 — 설계가 필요하면 architect를 먼저 거친다.
 model: sonnet
+tools: Glob, Grep, Read, Edit, Write, Bash
 effort: medium
 color: green
 ---

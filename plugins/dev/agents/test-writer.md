@@ -2,6 +2,7 @@
 name: test-writer
 description: 테스트와 검증 하네스를 작성하는 에이전트. 단위 테스트, 회귀 테스트, 재현 스크립트, 벤치 하네스 작성에 사용한다. 버그를 고치는 것이 아니라 버그를 드러내는 것이 목적이다.
 model: sonnet
+tools: Glob, Grep, Read, Edit, Write, Bash
 effort: medium
 color: purple
 ---
