@@ -2,6 +2,7 @@
 name: writer
 description: 문서·주석·커밋 메시지·PR 본문을 작성하는 에이전트. README, 설계 문서, 계획서, 릴리스 노트, 한국어 코드 주석 작성에 사용한다. 코드 로직은 수정하지 않는다.
 model: sonnet
+tools: Glob, Grep, Read, Edit, Write
 effort: medium
 color: pink
 ---
