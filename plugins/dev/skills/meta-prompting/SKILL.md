@@ -101,46 +101,23 @@ allowed-tools: Read, Write, Bash, PowerShell, AskUserQuestion, Agent
 - **표기 형식:** 매 초안·수정본마다 `📏 1,240자 / 4,000자 (여유 2,760자)`처럼 알린다. `/` 뒤 한계값에는 실제 적용 중인 한계(기본값 또는 사용자 지정값)를 넣는다 — 리터럴로 박지 말 것.
 - **초과 시:** 군더더기·중복 표현을 걷어내고 산문을 압축한다. 단 **완료 조건과 핵심 제약은 버리지 않는다** — 그게 프롬프트의 값이다. 줄인 뒤 새 글자수를 다시 보고한다.
 
-## 5. 마무리 — 저장 · 클립보드 복사 · 안내
+## 5. 마무리 — 저장 · 출력 · 안내
 
 최종본이 확정되면 순서대로 수행한다.
 
 ### 5-1. 파일로 저장
 
-**Write 도구로** 세션 환경에 맞는 임시 디렉터리의 `claude-goal-prompt.txt` 절대경로에 저장한다. Write는 임의 내용(`$`·백틱·따옴표 포함)을 그대로, trailing newline 없이 기록하므로 셸 이스케이프나 글자수 드리프트가 없다.
+**Write 도구로** 세션 환경에 맞는 임시 디렉터리의 `claude-goal-prompt.txt` 절대경로에 저장한다(4절에서 글자수를 세며 이미 만든 파일을 그대로 쓴다). Write는 임의 내용(`$`·백틱·따옴표 포함)을 그대로, trailing newline 없이 기록하므로 셸 이스케이프나 글자수 드리프트가 없다.
 
 - Windows: `%TEMP%\claude-goal-prompt.txt` (예: `C:\Users\<사용자>\AppData\Local\Temp\claude-goal-prompt.txt`)
 - POSIX: `${TMPDIR:-/tmp}/claude-goal-prompt.txt`
 
-### 5-2. 클립보드 복사 + 검증
+### 5-2. 최종 출력
 
-OS에 맞는 방법으로 복사하고, **되읽기(read-back)를 지원하는 플랫폼에서는 복사 후 되읽어 저장 내용과 비교**해 검증한다. Windows는 `Get-Clipboard`로 되읽는다(아래). 되읽기 명령이 없는 환경에서는 5-3의 코드블록이 안전망이 된다.
-
-- **Windows**(PowerShell 도구):
-  ```powershell
-  Get-Content -Raw -Encoding utf8 "<경로>" | Set-Clipboard
-  # 검증: 아래 값이 저장 내용과 같아야 한다
-  (Get-Clipboard -Raw).TrimEnd("`r`n")
-  ```
-- **macOS / Linux**(Bash):
-  ```bash
-  F="${TMPDIR:-/tmp}/claude-goal-prompt.txt"
-  if command -v pbcopy >/dev/null; then pbcopy < "$F"
-  elif command -v wl-copy >/dev/null; then wl-copy < "$F"
-  elif command -v xclip  >/dev/null; then xclip -selection clipboard < "$F"
-  elif command -v xsel   >/dev/null; then xsel --clipboard --input < "$F"
-  else echo "NO_CLIPBOARD"; fi
-  ```
-
-**복사 명령이 에러를 내거나, (되읽은 경우) read-back 내용이 저장 내용과 다르거나, 사용 가능한 복사 명령이 없으면** — 어느 경우든 실패로 간주하고 5-3의 코드블록 + 수동 안내로 강등한다. 되읽기를 못 하는 플랫폼에서도 5-3 코드블록이 항상 제공되므로, 클립보드는 편의일 뿐 조용히 깨지는 일은 없다.
-
-### 5-3. 최종 출력 (클립보드 성패와 무관하게 항상)
-
-1. 최종 프롬프트를 **코드블록으로** 다시 제시한다.
+1. 최종 프롬프트를 **코드블록으로** 다시 제시한다. 사용자는 여기서 바로 복사한다.
 2. 최종 글자수를 표기한다: `📏 최종 3,180자 / 4,000자`.
-3. 안내 문구:
-   - 복사 성공: "클립보드에 복사되었습니다. 새 세션을 시작하거나 `/clear` 실행 후 goal에 붙여넣으세요."
-   - 복사 실패: "클립보드 복사에 실패했습니다. 위 코드블록을 직접 복사해 goal에 붙여넣으세요."
+3. 저장 경로를 함께 알린다 — 대화가 길어져 코드블록을 다시 찾기 번거로울 때 쓰는 사본이다.
+4. 안내: "새 세션을 시작하거나 `/clear` 실행 후 goal에 붙여넣으세요."
 
 ## 부록: 생성 예시 (전 / 후)
 
