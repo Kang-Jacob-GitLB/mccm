@@ -8,17 +8,21 @@ T0 `haiku`  — 기계적·읽기전용·대량 출력
   `dev:build-runner`  빌드·테스트 명령 실행 후 성패+에러 요약만 반환
 
 T1 `sonnet` — 표준 작업
-  `dev:researcher`    코드 동작 조사, 호출 경로 추적, 공식 문서 조회
-  `dev:executor`      명세가 분명한 코드 수정
-  `dev:test-writer`   테스트·재현 하네스 작성
-  `dev:writer`        한국어 문서·주석·커밋/PR 본문
+  `dev:researcher`      코드 동작 조사, 호출 경로 추적, 공식 문서 조회
+  `dev:executor`        명세가 분명한 코드 수정
+  `dev:test-writer`     테스트·재현 하네스 작성
+  `dev:writer`          한국어 문서·주석·커밋/PR 본문
+  `dev:code-simplifier` 기능 불변 단순화(세션 diff 한정). 버그·기능 변경 금지
+  `dev:scientist`       데이터 통계 분석(CAN 캡처·측정 로그). 근거·한계 명시
+  `dev:designer`        UI 구현(프런트엔드 있는 저장소 한정). UI 없으면 스폰 오류
 
 T2 `opus`   — 판단·판정 (강등 금지)
-  `dev:architect`     설계·트레이드오프·구현 계획
-  `dev:code-reviewer` 코드 리뷰
-  `dev:verifier`      적대적 검증(반증 시도)
-  `dev:synthesizer`   다중 결과 합성·최종 판정
-  `dev:debugger`      증상→원인 동적 진단(임시 계측 후 원복). 유일한 쓰기 권한 T2
+  `dev:architect`       설계·트레이드오프·구현 계획
+  `dev:code-reviewer`   코드 리뷰
+  `dev:security-reviewer` 보안 결함 판정(악용성×피해범위). 읽기 전용
+  `dev:verifier`        적대적 검증(반증 시도)
+  `dev:synthesizer`     다중 결과 합성·최종 판정
+  `dev:debugger`        증상→원인 동적 진단(임시 계측 후 원복). 유일한 쓰기 권한 T2
 
 ## 업무량 축 (중요도와 별개로 적용)
 
@@ -27,7 +31,7 @@ T2 `opus`   — 판단·판정 (강등 금지)
   - 단 `dev:explorer`에는 `WebFetch`/`WebSearch`가 없다. 공식 문서 조회가 필요한 갈래는 강등하지 마라.
 - **T0는 강등 대상이 아니다.** 이미 최하위라 내려갈 곳이 없다.
 - **T2도 강등하지 않는다.** 판정이 틀리면 그 위의 모든 작업이 무의미해진다 — 10개 모듈을 `dev:code-reviewer`로 fan-out해도 opus를 유지한다.
-- **쓰기 stage(`dev:executor`·`dev:test-writer`·`dev:writer`)는 강등하지 않는다.** T0에는 파일을 수정할 수 있는 에이전트가 없어 강등 대상 자체가 존재하지 않고, 있더라도 부적절하다. 대신 이 순서로 줄인다:
+- **쓰기 stage(`dev:executor`·`dev:test-writer`·`dev:writer`·`dev:code-simplifier`·`dev:scientist`·`dev:designer`)는 강등하지 않는다.** T0에는 파일을 수정할 수 있는 에이전트가 없어 강등 대상 자체가 존재하지 않고, 있더라도 부적절하다. 대신 이 순서로 줄인다:
   1. **항목을 병합한다** — 한 호출에 여러 파일을 묶어 갈래 수 자체를 줄인다. 1순위다.
   2. 그래도 크면 per-call `{model: 'haiku'}` 오버라이드를 예외로 허용하되, **사유를 `log()`로 남기고** 프롬프트에 "받은 범위 밖을 고치지 말고, 의심되면 수정하지 말고 상위로 반환하라"를 반드시 넣는다.
   3. `dev:writer`와 `dev:test-writer`는 위 예외에서도 제외한다. 산문 품질과 "실패해야 할 때 실패하는 테스트"는 이 규칙이 지키려는 것 자체를 깎는다.
@@ -65,7 +69,8 @@ T2 `opus`   — 판단·판정 (강등 금지)
 - 파일·심볼 위치 탐색, 넓은 grep/glob 스윕 → `dev:explorer`
 - 여러 파일에 걸친 동작 조사, 호출 경로 추적 → `dev:researcher`
 - 빌드·테스트 실행과 로그 분석 → `dev:build-runner` / `dev:log-sifter`
-- 코드 리뷰·보안 점검 → `dev:code-reviewer` (작성자와 다른 패스로)
+- 코드 리뷰 → `dev:code-reviewer` (작성자와 다른 패스로) / 보안 점검 → `dev:security-reviewer`
+- 데이터 통계 분석(CAN 캡처·측정 로그) → `dev:scientist` / 기능 불변 정리 → `dev:code-simplifier` / UI 구현 → `dev:designer`
 - 모듈·디렉터리별로 쪼갤 수 있는 조사 → 모듈당 하나씩 병렬 fan-out
 
 ### 직접 하라
