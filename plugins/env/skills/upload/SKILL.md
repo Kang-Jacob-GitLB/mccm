@@ -38,6 +38,7 @@ settings.json에서 아래 섹션을 추출한다:
 - `permissions` (비어있으면)
 - `enabledPlugins` (plugins 섹션으로 이동)
 - `extraKnownMarketplaces` (marketplaces 섹션으로 이동)
+- `env`의 인증 정보 키 (토큰·인증 헤더 등 — 판정과 사용자 확인은 7단계)
 
 > `statusLine` 블록(예: `{"type":"command","command":"ccstatusline",...}`)은 머신 의존 경로가 없으면 `settings`에 그대로 포함한다. ccstatusline 바이너리는 아래 2단계에서 `clis`로 함께 등록되므로 둘이 항상 짝으로 배포된다.
 
@@ -120,6 +121,20 @@ settings.json에서 아래 섹션을 추출한다:
 > ⚠️ (2)를 선택하면 Gist에 토큰이 그대로 저장됩니다. secret Gist인지 반드시 확인하세요.
 
 사용자가 명시적으로 **(2) 포함**을 선택한 경우에만 env를 포함한다.
+
+`settings.env`에도 인증 정보가 들어 있을 수 있다(예: `OTEL_EXPORTER_OTLP_HEADERS`의 Basic 인증). 아래 중 하나에 해당하는 키는 **제거한 상태**로 mccm.json을 구성한다:
+
+- 키 이름에 `TOKEN`·`KEY`·`SECRET`·`AUTH`·`PASS`·`PWD`·`CREDENTIAL`·`HEADER`·`DSN` 포함 (대소문자 무시). `PAT`는 `PATH`·`PATTERN` 오탐이 나므로 쓰지 않는다.
+- 값에 `Basic `·`Bearer `가 포함 (대소문자 무시, `%20` 인코딩 변형 포함). **값의 시작이 아니라 포함 여부로 판정한다** — 실제 값은 `Authorization=Basic ...` 처럼 앞에 다른 토막이 붙는다.
+- 값에 URL 자격증명 `://사용자:비밀번호@호스트` 형태가 포함 (`HTTPS_PROXY`, `SENTRY_DSN` 등)
+
+> ⚠️ 아래 `settings.env` 항목에 인증 정보가 있어 제외했습니다:
+> - (키 목록 — **값은 표시하지 않는다**)
+>
+> **(1) 제외 유지** (기본) / **(2) 포함** 중 선택하세요.
+> ⚠️ (2)를 선택하면 Gist에 인증 정보가 그대로 저장됩니다. secret Gist인지 반드시 확인하세요.
+
+사용자가 명시적으로 **(2) 포함**을 선택한 경우에만 포함한다. 제외해도 나머지 `env` 키는 그대로 올라가므로, 다른 PC에서는 인증 값만 직접 채워 넣으면 된다.
 
 ### 8. gist 업데이트
 
