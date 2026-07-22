@@ -45,7 +45,7 @@ env 플러그인은 `mccm.json` 파일 하나에 환경 전체를 선언적으�
 | [cleanup](plugins/dev/skills/cleanup/) | 리모트 동기화 스킬 — 기본 브랜치 이동, pull, prune, 로컬 브랜치 정리 |
 | [md-to-pdf](plugins/dev/skills/md-to-pdf/) | Markdown → PDF 변환 — GitHub 웹 스타일 렌더링 |
 | [md-to-gdoc](plugins/dev/skills/md-to-gdoc/) | Markdown → Google Docs 변환 — GitHub 스타일 서식, gws CLI 사용 |
-| [meta-prompting](plugins/dev/skills/meta-prompting/) | goal 프롬프트 다듬기 — 대화형 인터뷰로 정보를 좁히고 `dev:explorer`로 코드 앵커를 찾아 4천 자 이내 명령형 프롬프트 완성 후 저장·클립보드 복사 |
+| [meta-prompting](plugins/dev/skills/meta-prompting/) | goal 프롬프트 다듬기 — 대화형 인터뷰로 정보를 좁히고 `dev:explorer`로 코드 앵커를 찾아 4천 자 이내 명령형 프롬프트를 완성, 코드블록 출력 + 파일 저장 |
 
 **서브에이전트 로스터 (모델 티어링)** — 워크플로·병렬 작업에서 `agentType`으로 라우팅하는 16종 전담 에이전트. 판단 난이도별 3티어(T0 haiku / T1 sonnet / T2 opus)와 부작용 축·강등·위임 규칙은 [`model-routing.md`](plugins/dev/model-routing.md)에 정의되며, SessionStart 훅으로 메인 세션에 주입된다.
 
