@@ -1,7 +1,7 @@
 {
   "name": "dev",
-  "version": "1.5.0",
-  "description": "개인 개발 스킬팩 — Git 워크플로우, 문서 변환, 서브에이전트 로스터(모델 티어링)",
+  "version": "1.6.0",
+  "description": "개인 개발 스킬팩 — Git 워크플로우, 문서 변환, 프롬프트 다듬기, 서브에이전트 로스터(모델 티어링)",
   "author": {
     "name": "jacob",
     "email": "jacob@litbig.com"
@@ -16,6 +16,9 @@
     "markdown",
     "pdf",
     "google-docs",
+    "meta-prompting",
+    "prompt",
+    "goal",
     "subagent",
     "model-routing",
     "agents",
