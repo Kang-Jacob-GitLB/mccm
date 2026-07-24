@@ -47,7 +47,7 @@ env 플러그인은 `mccm.json` 파일 하나에 환경 전체를 선언적으�
 | [md-to-gdoc](plugins/dev/skills/md-to-gdoc/) | Markdown → Google Docs 변환 — GitHub 스타일 서식, gws CLI 사용 |
 | [meta-prompting](plugins/dev/skills/meta-prompting/) | goal 프롬프트 다듬기 — 대화형 인터뷰로 정보를 좁히고 `dev:explorer`로 코드 앵커를 찾아 4천 자 이내 명령형 프롬프트를 완성, 코드블록 출력 + 파일 저장 |
 
-**서브에이전트 로스터 (모델 티어링)** — 워크플로·병렬 작업에서 `agentType`으로 라우팅하는 16종 전담 에이전트. 판단 난이도별 3티어(T0 haiku / T1 sonnet / T2 opus)와 부작용 축·강등·위임 규칙은 [`model-routing.md`](plugins/dev/model-routing.md)에 정의되며, SessionStart 훅으로 메인 세션에 주입된다.
+**서브에이전트 로스터 (모델 티어링)** — 워크플로·병렬 작업에서 `agentType`으로 라우팅하는 17종 전담 에이전트. 판단 난이도별 3티어(T0 haiku / T1 sonnet / T2 opus)와 부작용 축·강등·위임 규칙은 [`model-routing.md`](plugins/dev/model-routing.md)에 정의되며, SessionStart 훅으로 메인 세션에 주입된다.
 
 | 티어 | 에이전트 | 역할 |
 |------|---------|------|
@@ -67,6 +67,7 @@ env 플러그인은 `mccm.json` 파일 하나에 환경 전체를 선언적으�
 | T2 `opus` | verifier | 적대적 검증 (반증 시도) |
 | T2 `opus` | synthesizer | 다중 결과 합성·최종 판정 |
 | T2 `opus` | debugger | 증상→원인 동적 진단 (유일한 T2 쓰기 권한) |
+| T2 `opus` | advisor | 접근법 검토·막힌 지점 진단·완료 직전 점검 (메인만 호출) |
 
 ### worklog — 일일/주간 워크로그
 
@@ -138,7 +139,7 @@ mccm/
     │   ├── .claude-plugin/
     │   │   └── plugin.json
     │   ├── model-routing.md         ← 티어 정책 (SessionStart 훅으로 주입)
-    │   ├── agents/                  ← 서브에이전트 16종 (*.md)
+    │   ├── agents/                  ← 서브에이전트 17종 (*.md)
     │   └── skills/
     │       ├── commit/
     │       │   └── SKILL.md
