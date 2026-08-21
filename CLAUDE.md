@@ -23,7 +23,7 @@ GitHub Gist의 `mccm.json`으로 여러 PC의 Claude Code 환경(플러그인, M
 서브에이전트(`plugins/dev/agents/*.md`) 추가/수정/삭제 시 아래 항목을 반드시 수행한다:
 
 1. `plugins/dev/agents/{name}.md` 작성/수정/삭제 — frontmatter의 `tools` allowlist와 `model` 티어를 확인한다. `tools`를 생략하면 MCP 하드웨어 제어 툴까지 전부 상속하므로 쓰기 권한 에이전트에는 반드시 명시.
-2. `plugins/dev/model-routing.md` — 티어 목록·라우팅표·강등/위임 규칙에 반영. SessionStart 훅으로 주입되는 라이브 문서이므로 실제 로스터와 어긋나면 안 된다.
+2. `plugins/dev/model-routing.md` — 위임 권한(하네스 기본 지시 대비 우선순위)·티어 목록·라우팅표·강등/위임 규칙·부작용 축에 반영. SessionStart 훅으로 주입되는 라이브 문서이므로 실제 로스터와 어긋나면 안 된다. 에이전트의 부작용 등급이나 거부 조항을 바꿨으면 「부작용 축」도 함께 고친다.
 3. `README.md` — 에이전트 목록 테이블, 플러그인 구조 트리 반영.
 4. 참조 확인 — 삭제·개명 시 이 에이전트를 참조하는 스킬·훅·CLAUDE.md 절차가 있는지 grep으로 확인.
 5. 버전업 — `plugin.json` + `marketplace.json` 동시 변경

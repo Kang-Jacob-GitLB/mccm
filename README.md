@@ -47,13 +47,13 @@ env 플러그인은 `mccm.json` 파일 하나에 환경 전체를 선언적으�
 | [md-to-gdoc](plugins/dev/skills/md-to-gdoc/) | Markdown → Google Docs 변환 — GitHub 스타일 서식, gws CLI 사용 |
 | [meta-prompting](plugins/dev/skills/meta-prompting/) | goal 프롬프트 다듬기 — 대화형 인터뷰로 정보를 좁히고 `dev:explorer`로 코드 앵커를 찾아 4천 자 이내 명령형 프롬프트를 완성, 코드블록 출력 + 파일 저장 |
 
-**서브에이전트 로스터 (모델 티어링)** — 워크플로·병렬 작업에서 `agentType`으로 라우팅하는 17종 전담 에이전트. 판단 난이도별 3티어(T0 haiku / T1 sonnet / T2 opus)와 부작용 축·강등·위임 규칙은 [`model-routing.md`](plugins/dev/model-routing.md)에 정의되며, SessionStart 훅으로 메인 세션에 주입된다.
+**서브에이전트 로스터 (모델 티어링)** — 워크플로·병렬 작업에서 `agentType`으로 라우팅하는 17종 전담 에이전트. 판단 난이도별 3티어(T0 haiku / T1 sonnet / T2 opus)와 위임 권한·부작용 축·강등 규칙은 [`model-routing.md`](plugins/dev/model-routing.md)에 정의되며, SessionStart 훅으로 메인 세션에 주입된다. 문서 최상단의 「위임 권한」 절은 위임을 억제하는 하네스 기본 지시와 충돌할 때 **이 정책이 우선**임을 규정한다 — 하네스는 위임 억제를 기본값으로 붙이지만, 사용자 통제 계층의 정책이 이를 덮는다.
 
 | 티어 | 에이전트 | 역할 |
 |------|---------|------|
 | T0 `haiku` | explorer | 파일·심볼 위치 탐색 (읽기 전용) |
 | T0 `haiku` | log-sifter | 큰 로그에서 에러·경고만 추출 |
-| T0 `haiku` | build-runner | 빌드·테스트 실행 후 성패+에러 요약 |
+| T0 `haiku` | build-runner | 빌드·테스트 실행 후 성패+에러 요약. 되돌릴 수 없는 명령(push·배포·하드웨어 송신)은 실행하지 않고 거부 반환 |
 | T1 `sonnet` | researcher | 코드 동작 조사·호출 경로 추적·공식 문서 조회 |
 | T1 `sonnet` | executor | 명세가 분명한 코드 수정 |
 | T1 `sonnet` | test-writer | 테스트·재현 하네스 작성 |
