@@ -43,6 +43,7 @@ env 플러그인은 `mccm.json` 파일 하나에 환경 전체를 선언적으�
 | [commit](plugins/dev/skills/commit/) | Git 커밋 스킬 — 보안 검토, 브랜치 생성, 스테이징, 커밋 메시지 작성 |
 | [pr](plugins/dev/skills/pr/) | PR 생성 스킬 — push, 제목/본문 생성, assignee, label 자동 설정, Actions 체크 추적 |
 | [cleanup](plugins/dev/skills/cleanup/) | 리모트 동기화 스킬 — 기본 브랜치 이동, pull, prune, 로컬 브랜치 정리 |
+| [report](plugins/dev/skills/report/) | 변경사항·PR 보고서 스킬 — 커밋/PR/브랜치 diff를 개발자 리뷰어용 HTML Artifact로. 변경 전후 대비 블록다이어그램·시퀀스 플로우를 인라인 SVG로 그리고 저장소 고유 용어 풀이와 리뷰 포인트를 붙인다 |
 | [md-to-pdf](plugins/dev/skills/md-to-pdf/) | Markdown → PDF 변환 — GitHub 웹 스타일 렌더링 |
 | [md-to-gdoc](plugins/dev/skills/md-to-gdoc/) | Markdown → Google Docs 변환 — GitHub 스타일 서식, gws CLI 사용 |
 | [meta-prompting](plugins/dev/skills/meta-prompting/) | goal 프롬프트 다듬기 — 대화형 인터뷰로 정보를 좁히고 `dev:explorer`로 코드 앵커를 찾아 4천 자 이내 명령형 프롬프트를 완성, 코드블록 출력 + 파일 저장 |
@@ -147,6 +148,10 @@ mccm/
     │       │   └── SKILL.md
     │       ├── cleanup/
     │       │   └── SKILL.md
+    │       ├── report/
+    │       │   ├── SKILL.md
+    │       │   └── references/
+    │       │       └── diagram-recipes.md   ← SVG 좌표 레시피
     │       ├── md-to-pdf/
     │       │   └── SKILL.md
     │       ├── md-to-gdoc/
