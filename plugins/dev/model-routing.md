@@ -74,7 +74,7 @@ T2 `opus`   — 판단·판정 (강등 금지)
 - **되돌릴 수 없는 작업은 서브에이전트에 맡기지 않는다.** 메인이 사용자 확인을 받고 직접 수행한다. 서브에이전트는 그것을 판단할 맥락도, 사용자에게 물을 통로도 없다.
 - `dev:build-runner`가 특히 위험하다. "명령을 임의로 바꾸지 마라, 잘못돼 보여도 실행하고 보고하라"는 계약이라 `git push --tags`를 받으면 그대로 쏜다. **넘기는 명령이 로컬에서 끝나는지 확인하고 넘겨라.**
 - 각 에이전트의 `tools:` allowlist는 **MCP 채널만** 막는다. `tools:`를 생략하면 MCP 하드웨어 제어 툴까지 전부 상속하므로 쓰기 권한이 있는 에이전트에는 반드시 명시한다(현재 로스터 17종 전부 명시돼 있고 MCP 툴을 가진 것은 없다).
-- **다만 allowlist를 하드웨어 방어선으로 착각하지 마라.** 같은 하드웨어를 때리는 CLI는 `Bash`·`PowerShell`로 그대로 뚫린다 — CANalyst venv `Scripts/`에 `can_player`·`can_bridge`·`canalyst-core`가 실행 파일로 놓여 있고, 로스터 17종 중 **16종이 스코프 없는 `Bash`**를, 3종이 `PowerShell`을 가진다. 하드웨어 송신을 실제로 차단하려면 allowlist가 아니라 `settings.json`의 `permissions.deny`가 필요하다. 그 설정이 없는 환경에서는 **CAN 캡처 분석을 위임할 때 "재현·재생하지 말고 파일만 읽어라"를 프롬프트에 명시해라.**
+- **다만 allowlist를 하드웨어 방어선으로 착각하지 마라.** 같은 하드웨어를 때리는 CLI는 `Bash`·`PowerShell`로 그대로 뚫린다 — CANalyst venv `Scripts/`에 `can_player`·`can_bridge`·`canalyst-core`가 실행 파일로 놓여 있고, 로스터 17종 중 **16종이 스코프 없는 `Bash`**를, 3종이 `PowerShell`을 가진다. 하드웨어 송신을 실제로 차단하려면 allowlist가 아니라 `settings.json`의 `permissions.deny`가 필요하다 — 최소 집합은 `Bash(*can_player*)`·`Bash(*can_bridge*)`·`Bash(*canalyst-core*)`와 `PowerShell(...)` 동일 3종이다. **PC마다 다르므로 새 환경에서는 실제로 걸려 있는지 확인하고 넘어가라**(`/download`로 동기화되는 항목이다). 그 설정이 없는 환경에서는 **CAN 캡처 분석을 위임할 때 "재현·재생하지 말고 파일만 읽어라"를 프롬프트에 명시해라.**
 
 ## 조언 비용
 
@@ -135,6 +135,7 @@ T2 `opus`   — 판단·판정 (강등 금지)
 ## 주의
 
 - 워크플로 `agent(prompt, {model, effort})` per-call 오버라이드는 frontmatter를 이긴다. 정책에서 벗어나야 할 때만 쓰고, 이유를 `log()`로 남긴다.
+- **다만 이 경로는 워크플로 스크립트에만 있다.** `Agent` 툴에는 `model` 파라미터만 있고 `effort` 오버라이드가 없다 — 즉 Agent 툴로 스폰하는 대부분의 경우 **frontmatter `effort`가 유일한 per-agent 통제점**이다. "호출마다 effort를 조절하면 된다"는 전제로 티어를 설계하지 마라.
 - `CLAUDE_CODE_SUBAGENT_MODEL` / `CLAUDE_CODE_EFFORT_LEVEL` 환경변수는 **비워 둔다.** 이 둘은 해석 순서 1순위라 per-call 오버라이드와 frontmatter를 **둘 다** 덮어써서 티어링을 통째로 무력화한다. (전부 싸게 돌리는 한시적 킬스위치로만 사용)
 - 에이전트 정의는 이 플러그인(`mccm/dev`)이 제공하며, 플러그인 에이전트는 해석 우선순위 **최하위**다. 다만 플러그인 이름에는 `dev:` 접두사가 붙으므로 접두사 없는 로컬 정의(`explorer`)와는 별개 항목으로 공존할 여지가 있다 — 이 섀도잉 동작은 실측하지 않았다. 로컬에 같은 역할을 두려면 이름을 달리해 혼선을 피하라.
 </model_routing>

@@ -2,7 +2,7 @@
 name: verifier
 description: 주장이 사실인지 적대적으로 검증하는 에이전트. 다른 에이전트가 찾았다는 버그, "고쳤다"는 수정, "통과한다"는 테스트를 반증 시도로 확인한다. 워크플로의 최종 판정 단계에 쓴다 — 절대 낮은 티어로 강등하지 않는다.
 model: opus
-effort: xhigh
+effort: high
 tools: Glob, Grep, Read, Bash, PowerShell
 color: red
 ---
