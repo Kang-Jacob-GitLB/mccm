@@ -1,7 +1,7 @@
 {
   "name": "dev",
-  "version": "2.0.1",
-  "description": "개인 개발 스킬팩 — Git 워크플로우, 변경사항 HTML 보고서, 프롬프트 다듬기, 서브에이전트 로스터(모델 티어링)",
+  "version": "2.1.0",
+  "description": "개인 개발 스킬팩 — Git 워크플로우, 변경사항 HTML 보고서, 비개발자용 그림 브리핑, 프롬프트 다듬기, 서브에이전트 로스터(모델 티어링)",
   "author": {
     "name": "jacob",
     "email": "jacob@litbig.com"
@@ -25,7 +25,12 @@
     "diagram",
     "artifact",
     "html",
-    "code-change"
+    "code-change",
+    "brief",
+    "explain",
+    "non-technical",
+    "stakeholder",
+    "svg"
   ],
   "skills": "./skills/",
   "hooks": {

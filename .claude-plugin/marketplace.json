@@ -7,13 +7,13 @@
   },
   "metadata": {
     "description": "개인용 Claude Code 플러그인 마켓플레이스",
-    "version": "4.0.1"
+    "version": "4.1.0"
   },
   "plugins": [
     {
       "name": "dev",
       "source": "./plugins/dev",
-      "description": "개인 개발 스킬팩 — Git 워크플로우·변경사항 HTML 보고서·프롬프트 다듬기 스킬 + 모델 티어링 서브에이전트 로스터(탐색·조사·구현·리뷰·검증·보안·디버깅 등)"
+      "description": "개인 개발 스킬팩 — Git 워크플로우·변경사항 HTML 보고서·비개발자용 그림 브리핑·프롬프트 다듬기 스킬 + 모델 티어링 서브에이전트 로스터(탐색·조사·구현·리뷰·검증·보안·디버깅 등)"
     },
     {
       "name": "env",
