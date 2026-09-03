@@ -44,6 +44,7 @@ env 플러그인은 `mccm.json` 파일 하나에 환경 전체를 선언적으�
 | [pr](plugins/dev/skills/pr/) | PR 생성 스킬 — push, 제목/본문 생성, assignee, label 자동 설정, Actions 체크 추적 |
 | [cleanup](plugins/dev/skills/cleanup/) | 리모트 동기화 스킬 — 기본 브랜치 이동, pull, prune, 로컬 브랜치 정리 |
 | [report](plugins/dev/skills/report/) | 변경사항·PR 보고서 스킬 — 커밋/PR/브랜치 diff를 개발자 리뷰어용 HTML Artifact로. 변경 전후 대비 블록다이어그램·시퀀스 플로우를 인라인 SVG로 그리고 저장소 고유 용어 풀이와 리뷰 포인트를 붙인다 |
+| [brief](plugins/dev/skills/brief/) | 비개발자용 브리핑 스킬 — 코드·PR부터 개념·기술 선택·일정까지 무엇이든 기획·PM·영업·경영진이 이해할 HTML Artifact로. 설명의 대부분을 인라인 SVG 그림이 지고 글은 그림이 못 하는 것만 남긴다. 은유는 독자의 업무(결재·재고·검사 라인 등)에서 가져오고, 「그래서 무엇을 하면 되는가」로 닫는다 |
 | [meta-prompting](plugins/dev/skills/meta-prompting/) | goal 프롬프트 다듬기 — 대화형 인터뷰로 정보를 좁히고 `dev:explorer`로 코드 앵커를 찾아 4천 자 이내 명령형 프롬프트를 완성, 코드블록 출력 + 파일 저장 |
 
 **서브에이전트 로스터 (모델 티어링)** — 워크플로·병렬 작업에서 `agentType`으로 라우팅하는 17종 전담 에이전트. 판단 난이도별 3티어(T0 haiku / T1 sonnet / T2 opus)와 위임 권한·부작용 축·강등 규칙은 [`model-routing.md`](plugins/dev/model-routing.md)에 정의되며, SessionStart 훅으로 메인 세션에 주입된다. 문서 최상단의 「위임 권한」 절은 위임을 억제하는 하네스 기본 지시와 충돌할 때 **이 정책이 우선**임을 규정한다 — 하네스는 위임 억제를 기본값으로 붙이지만, 사용자 통제 계층의 정책이 이를 덮는다.
@@ -149,7 +150,11 @@ mccm/
     │       ├── report/
     │       │   ├── SKILL.md
     │       │   └── references/
-    │       │       └── diagram-recipes.md   ← SVG 좌표 레시피
+    │       │       └── diagram-recipes.md      ← SVG 좌표 레시피 (개발자용)
+    │       ├── brief/
+    │       │   ├── SKILL.md
+    │       │   └── references/
+    │       │       └── visual-vocabulary.md    ← 비개발자용 그림 어휘·은유·레시피
     │       └── meta-prompting/
     │           └── SKILL.md
     └── worklog/
