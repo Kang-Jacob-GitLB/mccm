@@ -1,6 +1,9 @@
 # OMC local state
 .omc/
 
+# Claude Code 워크트리 — 로컬 전용 작업 사본
+.claude/worktrees/
+
 # mccm.json is managed via gist
 plugins/env/mccm.json
 
