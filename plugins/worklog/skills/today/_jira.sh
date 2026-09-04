@@ -16,7 +16,18 @@ jira_load_cfg() {
   [ -f "$JIRA_CFG" ] || return 1
   JIRA_SERVER=$(grep -E '^server:' "$JIRA_CFG" 2>/dev/null | head -1 | sed -E 's/^server:[[:space:]]*//; s/"//g; s/\r//g') || true
   JIRA_LOGIN=$(grep -E '^login:'  "$JIRA_CFG" 2>/dev/null | head -1 | sed -E 's/^login:[[:space:]]*//; s/"//g; s/\r//g') || true
-  [ -n "${JIRA_SERVER:-}" ] && [ -n "${JIRA_LOGIN:-}" ]
+  [ -n "${JIRA_SERVER:-}" ] && [ -n "${JIRA_LOGIN:-}" ] || return 1
+  JIRA_SERVER="${JIRA_SERVER%/}"                 # 후행 슬래시 → "//rest" 이중 슬래시 방지
+  # Basic 자격을 평문으로 흘리지 않는다 — https 가 아니면 토큰을 보내지 않고 물러난다.
+  # 이 파일의 계약대로 호출부를 죽이지 않고 조용히 degrade 하되, 이유는 1 회 알린다.
+  case "$(printf '%s' "$JIRA_SERVER" | tr 'A-Z' 'a-z')" in
+    https://*) ;;
+    *) [ -n "${_JIRA_SCHEME_WARNED:-}" ] || {
+         echo "WARN: jira config 의 server 가 https:// 가 아니라 Jira 조회를 건너뛴다 (Basic 자격 평문 전송 방지)." >&2
+         _JIRA_SCHEME_WARNED=1
+       }
+       return 1 ;;
+  esac
 }
 
 # 프로젝트 키 해결: $1(명시) > config flat 'project: KEY' > nested 'project:\n  key: KEY'.
