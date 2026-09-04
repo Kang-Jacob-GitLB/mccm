@@ -75,9 +75,16 @@ fi
 # ── Jira 인증/계정 ───────────────────────────────────────────
 cfg="$HOME/.config/.jira/.config.yml"
 [ -f "$cfg" ] || { echo "ERROR: jira config 없음 ($cfg). 먼저 'jira init' 로 서버/로그인 구성." >&2; exit 1; }
-server=$(grep -E '^server:' "$cfg" | head -1 | sed -E 's/^server:[[:space:]]*//; s/"//g')
-login=$(grep -E '^login:'  "$cfg" | head -1 | sed -E 's/^login:[[:space:]]*//; s/"//g')
+server=$(grep -E '^server:' "$cfg" | head -1 | sed -E 's/^server:[[:space:]]*//; s/"//g; s/\r//g')
+login=$(grep -E '^login:'  "$cfg" | head -1 | sed -E 's/^login:[[:space:]]*//; s/"//g; s/\r//g')
 [ -n "$server" ] && [ -n "$login" ] || { echo "ERROR: config 에서 server/login 파싱 실패." >&2; exit 1; }
+server="${server%/}"                             # 후행 슬래시 → "//rest" 이중 슬래시 방지
+# Basic 자격을 평문으로 흘리지 않는다 — config 의 server 가 http:// 면 시작조차 하지 않는다.
+# 첫 요청(/myself)이 이미 토큰을 싣고 나가므로 "경고 후 진행"은 사후 통보일 뿐이라 하드 페일한다.
+case "$(printf '%s' "$server" | tr 'A-Z' 'a-z')" in
+  https://*) ;;
+  *) echo "ERROR: server 는 https:// 여야 한다 (Basic 자격 평문 전송 방지): $server" >&2; exit 1 ;;
+esac
 [ -n "${JIRA_API_TOKEN:-}" ] || { echo "ERROR: JIRA_API_TOKEN env 미설정. (Atlassian API 토큰을 env 로 노출)" >&2; exit 1; }
 auth=$(printf '%s:%s' "$login" "$JIRA_API_TOKEN" | base64 -w0)
 
@@ -138,6 +145,14 @@ JQ
 # 순차로는 이슈 수에 비례해 느리다 → 동시성 제한(PAR) 병렬 fetch 로 왕복 지연을 겹친다.
 # 출력 라인 섞임 방지를 위해 각 이슈 결과는 별도 임시파일에 받고 마지막에 합친다.
 fetch_one() {  # $1=key $2=summary $3=status ; JSONL → stdout
+  # 이슈 키를 URL 경로에 넣기 전 검증 — today/jira_worklog.sh:268 과 동일 규칙.
+  # 조용히 버리면 총합만 줄어든 그럴듯한 보고서가 나온다 — 틀린 숫자가 실패보다 나쁘므로 알린다.
+  # (stdout 은 JSONL/요약 계약이라 반드시 stderr 로. %.32s 로 잘라 제어문자 도배를 막는다)
+  case "$1" in
+    ''|*[!A-Za-z0-9_-]*)
+      printf 'WARN: 이슈 키 형식 이상 — 이 이슈의 워크로그를 집계에서 제외한다: %.32s\n' "$1" >&2
+      return 0 ;;
+  esac
   api "/rest/api/3/issue/$1/worklog" \
     | jqr -c --arg key "$1" --arg summary "$2" --arg status "$3" \
            --arg acct "$my_acct" --arg email "$my_email" --arg s "$START" --arg e "$END" \
@@ -173,13 +188,15 @@ echo "===SUMMARY==="
 echo "기간: ${START}($(wd "$START")) ~ ${END}($(wd "$END"))"
 
 # 모든 집계를 단일 jq 로 산출(Windows 프로세스 스폰 최소화). 태그 T/I/D 로 구분:
+#   @tsv 로 낸다 — 요약·상태에 탭이나 개행이 섞여도 필드·행이 밀리지 않는다.
+#   (직접 \t 보간이면 이슈 제목의 개행 하나로 위조 T 행을 만들어 총합을 덮어쓸 수 있다)
 #   T <총초> <이슈수> <근무일수> <워크로그수> · I <키> <초> <건> <상태> <요약> · D <일> <초> <건>
 agg=$(jqr -r -s '
-  ( "T\t\(map(.seconds)|add // 0)\t\([.[].key]|unique|length)\t\([.[].date]|unique|length)\t\(length)" ),
+  ( ["T", (map(.seconds)|add // 0), ([.[].key]|unique|length), ([.[].date]|unique|length), length] | @tsv ),
   ( group_by(.key)  | map({k:.[0].key, st:.[0].status, su:.[0].summary, sec:(map(.seconds)|add), c:length})
-    | sort_by(-.sec)[] | "I\t\(.k)\t\(.sec)\t\(.c)\t\(.st)\t\(.su)" ),
+    | sort_by(-.sec)[] | ["I", .k, .sec, .c, .st, .su] | @tsv ),
   ( group_by(.date) | map({d:.[0].date, sec:(map(.seconds)|add), c:length})
-    | sort_by(.d)[]   | "D\t\(.d)\t\(.sec)\t\(.c)" )
+    | sort_by(.d)[]   | ["D", .d, .sec, .c] | @tsv )
 ' "$TMP" 2>/dev/null || true)
 
 issues=(); days=(); tot=0; ni=0; nd=0; nw=0
