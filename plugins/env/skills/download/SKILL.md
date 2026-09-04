@@ -10,6 +10,7 @@ allowed-tools: Bash, Read, Edit
 - settings.json: !`cat "$HOME/.claude/settings.json" 2>/dev/null || echo "not found"`
 - ccstatusline: !`cat "$HOME/.config/ccstatusline/settings.json" 2>/dev/null || echo "not found"`
 - CLAUDE.md: !`f="$HOME/.claude/CLAUDE.md"; [ -f "$f" ] && echo "존재 ($(wc -l < "$f") 줄) — 내용은 전사하지 말고 jq 파이프로 복원" || echo "not found"`
+- worklog.json (gist): !`GIST_ID=$(gh api gists --jq '.[] | select(.files["mccm.json"] != null) | .id' 2>/dev/null | head -1); [ -n "$GIST_ID" ] && gh gist view "$GIST_ID" --filename worklog.json >/dev/null 2>&1 && echo "존재 (내용은 민감할 수 있어 표시하지 않음)" || echo "not found"`
 
 ## 변수 치환 규칙
 
@@ -89,6 +90,154 @@ diff <(gh gist view "$GIST_ID" --filename mccm.json | jq -S '.ccstatusline.confi
      <(jq -S . "$DST") >/dev/null \
   && echo "검증 OK (글리프 포함 일치)" \
   || echo "⚠️ 불일치 — jq 파이프로 재시도(전사 금지)"
+```
+
+### 4-b. worklog 프로필 복원
+
+gist에 `worklog.json` 형제 파일이 있으면 `$HOME/.config/mccm/worklog.json`에 복원한다. (업로드 쪽 2-b 참고 — 이 파일은 mccm.json 안이 아니라 gist의 별도 파일이다.)
+
+> **⚠️ 전사 금지:** `ccstatusline.config`·`claudeMd`와 같은 이유다. **`jq` 파이프로 전체 덮어쓰기**만 한다. 부분 Edit 금지 — gist가 단일 진실원이다.
+
+- gist에 `worklog.json` 파일 자체가 **없으면**: "건너뜀" — 로컬 프로필을 절대 건드리지 않는다. (10단계 `claudeMd` null 가드와 같은 실패 방어다.)
+- gist 내용을 **임시 파일에 한 번만** 받아 JSON 객체인지 검증한 뒤 그 임시 파일로만 판정·기록한다 — `gh gist view`를 여러 번 따로 호출하면 판정과 기록 사이에 gist가 바뀔 수 있다(TOCTOU).
+- `> "$DST"` 리다이렉트로 직접 받지 않는다. 리다이렉트는 `gh` 실행 전에 `$DST`를 0바이트로 자르므로, 네트워크 실패·인증 만료 시 유일한 로컬 프로필이 빈 파일로 파괴된다.
+- 로컬 파일이 **없으면**: `mkdir -p` 후 바로 기록한다.
+- **동일**하면(아래 `diff`가 무출력): 스킵.
+- **다르면(충돌)**: 차이를 보여주고 **사용자 승인을 받기 전에는 절대 쓰지 않는다** — **(1) 취소**(로컬 유지) / **(2) 대치**(gist로 교체).
+- 기록 전에 기존 파일을 타임스탬프 `.bak`으로 백업해 되돌릴 수 있게 한다.
+- 승인은 **코드 조건**이며, 플래그가 아니라 **내용 해시**에 묶인다 — 「다름」 분기는 `WL_APPROVED`가
+  현재 gist 내용의 sha256과 일치할 때만 기록한다. 첫 실행이 차이와 함께 `WL_APPROVED=<해시>`를 출력하므로,
+  사용자가 **(2) 대치**를 고른 경우에만 그 줄을 그대로 붙여 다시 실행한다.
+  승인 후 gist가 바뀌었으면 해시가 어긋나 기록되지 않는다 — 사용자가 본 diff가 아닌 내용은 쓰지 않는다.
+
+```bash
+GIST_ID=<선택된 gist id>
+DST="$HOME/.config/mccm/worklog.json"
+
+# 0) 가드 — gist에 worklog.json 파일 자체가 없으면 아무것도 하지 않는다 (claudeMd 가드와 동일한 이유).
+# gist 에 파일이 없는 것과 gh 가 실패한 것(네트워크·인증)을 구분한다.
+# 둘 다 로컬을 건드리지 않지만, 원인이 다르면 사용자가 할 일도 다르다.
+if ! gh api "gists/$GIST_ID" --jq .id >/dev/null 2>&1; then
+  echo "⚠️ gist 를 읽지 못했다 (네트워크·인증·gist id 확인) → 로컬 프로필을 건드리지 않는다"
+elif ! gh gist view "$GIST_ID" --filename worklog.json >/dev/null 2>&1; then
+  echo "gist 에 worklog.json 없음 → 건너뜀 (로컬 프로필을 건드리지 않는다)"
+else
+  # 1) gist 내용을 임시 파일에 한 번만 받고 JSON 객체인지 검증한다 (claudeMd 가드와 동등한 수준).
+  #    이후 판정·기록은 전부 이 임시 파일로만 한다 — gh 를 다시 호출하지 않는다(TOCTOU 제거).
+  #    임시 파일은 대상과 같은 디렉터리에 만든다 — /tmp 가 다른 파일시스템이면
+  #    아래 mv 가 cross-device 로 실패해 원자성이 깨진다.
+  mkdir -p "$HOME/.config/mccm"
+  TMPF="$(mktemp "${DST}.XXXXXX")"
+  if ! gh gist view "$GIST_ID" --filename worklog.json > "$TMPF" 2>/dev/null \
+     || ! jq -e 'type=="object"' "$TMPF" >/dev/null 2>&1; then
+    rm -f "$TMPF"
+    echo "⚠️ gist 의 worklog.json 을 못 읽거나 JSON 객체가 아님 → 로컬 유지"
+  else
+    # 2) 없음 / 동일 / 다름 3분기 (JSON 값끼리 비교)
+    #    디렉터리·심링크 등 "일반 파일이 아닌 무언가"가 자리를 차지하고 있으면
+    #    없음으로 오판하면 안 된다 — mv 가 그 안으로 성공해 쓰레기 파일을 흘린다.
+    if [ -e "$DST" ] && [ ! -f "$DST" ]; then
+      STATE="비정상"
+    elif [ ! -e "$DST" ]; then
+      STATE="없음"
+    elif diff <(jq -S . "$TMPF") <(jq -S . "$DST" 2>/dev/null) >/dev/null; then
+      STATE="동일"
+    else
+      STATE="다름"
+    fi
+    echo "판정: $STATE"
+
+    # 3) 기록. 승인 게이트는 산문이 아니라 아래 코드 조건이다 — 주석은 게이트가 아니다.
+    #    "다름"은 기존 로컬 프로필을 덮어쓰는 유일한 분기라, diff 를 보여준 뒤
+    #    WL_APPROVED 가 아래 WL_TOKEN(내용 해시)과 일치할 때만 쓴다.
+    #    플래그가 아니라 해시다 — 이 주석을 "1 이면 된다"로 되돌리지 마라.
+    #    없거나 어긋나면 아무것도 쓰지 않고 로컬을 유지한다.
+    #    기록은 전체 덮어쓰기로만 — 전사/부분 Edit 금지.
+    # 승인 토큰 = 지금 받아 둔 내용의 해시. "승인했다"가 아니라 "이 내용을 승인했다"여야 한다.
+    # 사용자가 diff 를 보고 승인하는 사이 gist 가 바뀌면, 플래그 하나로는 본 적 없는
+    # 내용이 그대로 기록된다 — 승인 루프가 두 번의 실행에 걸쳐 있어 TOCTOU 가 되살아난다.
+    # sha256sum 이 없으면 파이프가 끊겨 jq 가 EPIPE 오류를 뱉으므로 양쪽 다 잠재운다.
+    # ⚠ 아래 -z 검사가 잡는 것은 sha256sum 부재뿐이다. jq 가 실패하면 빈 스트림이 해싱돼
+    #   e3b0c442… 라는 "비어 있지 않고 그럴듯한" 토큰이 나온다. 그래도 안전한 이유는
+    #   TMPF 가 바로 위에서 jq -e 'type=="object"' 로 검증됐기 때문이다.
+    #   이 패턴을 검증 없는 입력에 옮기면 fail-open 이 된다 — 전제를 함께 옮겨라.
+    WL_TOKEN="$( { jq -S . "$TMPF" 2>/dev/null | sha256sum 2>/dev/null; } | cut -d' ' -f1)"
+
+    wl_write() {   # $1=1 이면 기존 파일을 백업한다. 성공 시 rc0.
+      local bak
+      # sha256sum 이 없으면 해시 승인이 성립하지 않는다.
+      # 덮어쓰기($1=1)는 파괴적이므로 중단하고, 새로 만드는 경로는 잃을 것이 없으니
+      # 기록하되 검증을 생략한다고 밝힌다 — 위험이 다른 두 경로를 같게 다루지 않는다.
+      if [ -z "${WL_TOKEN:-}" ]; then
+        if [ "$1" = 1 ]; then
+          echo "⚠️ sha256sum 을 쓸 수 없어 승인·검증이 불가능하다 → 덮어쓰지 않는다"
+          rm -f "$TMPF"; return 1
+        fi
+        echo "⚠️ sha256sum 없음 → 기록하되 사후 검증은 생략한다"
+        mv "$TMPF" "$DST" || { rm -f "$TMPF"; return 1; }
+        return 0
+      fi
+      if [ "$1" = 1 ]; then
+        # 같은 초에 두 번 대치해도 백업이 덮이지 않도록 mktemp 로 유일한 이름을 받는다.
+        bak="$(mktemp --suffix=.bak "$DST.$(date +%Y%m%d-%H%M%S).XXXXXX" 2>/dev/null)" \
+          || bak="$DST.$(date +%Y%m%d-%H%M%S).$$.bak"
+        cp "$DST" "$bak" || { echo "⚠️ 백업 실패 → 기록하지 않는다"; rm -f "$TMPF"; return 1; }
+        echo "백업: $bak"
+      fi
+      mv "$TMPF" "$DST" || { rm -f "$TMPF"; return 1; }   # 원자적 교체 — 부분 기록 없음
+      # 검증 기준값은 mv 전에 뜬 해시다 — 기록 후 gh 를 다시 부르면 위에서 없앤 TOCTOU 가 되살아난다.
+      [ "$( { jq -S . "$DST" 2>/dev/null | sha256sum 2>/dev/null; } | cut -d' ' -f1)" = "$WL_TOKEN" ]
+    }
+
+    case "$STATE" in
+      비정상)
+        rm -f "$TMPF"
+        echo "⚠️ $DST 가 일반 파일이 아니다(디렉터리·특수파일) → 손대지 않는다"
+        echo "   직접 확인하고 치운 뒤 다시 실행해라."
+        ;;
+      동일)
+        rm -f "$TMPF"
+        echo "동일 → 스킵"
+        ;;
+      없음)
+        # 덮어쓸 로컬 파일이 없으므로 파괴 위험이 없다 → 승인 없이 기록한다.
+        wl_write 0 && echo "worklog 프로필 복원 OK" || echo "⚠️ 복원 실패 → 로컬 유지"
+        ;;
+      다름)
+        echo "--- 차이 (< 로컬 / > gist) ---"
+        diff <(jq -S . "$DST") <(jq -S . "$TMPF") | head -60
+        if [ -z "$WL_TOKEN" ]; then
+          # 승인 토큰을 만들 수 없다. gist 가 바뀐 것이 아니므로 그렇게 말하지 않는다.
+          rm -f "$TMPF"
+          echo "⚠️ sha256sum 을 쓸 수 없어 승인 토큰을 만들 수 없다 → 로컬 유지"
+          echo "   이 PC 에서는 덮어쓰기 복원을 할 수 없다. coreutils 를 설치하거나"
+          echo "   위 차이를 보고 직접 편집해라."
+        elif [ -n "${WL_APPROVED:-}" ] && [ "$WL_APPROVED" = "$WL_TOKEN" ]; then
+          wl_write 1 && echo "worklog 프로필 대치 OK" || echo "⚠️ 대치 실패 → 백업으로 되돌릴 수 있다"
+        elif [ -n "${WL_APPROVED:-}" ]; then
+          # 승인은 받았는데 내용이 그 사이 바뀌었다 — 사용자가 본 diff 가 아니다.
+          rm -f "$TMPF"
+          echo "⚠️ 승인 토큰이 현재 gist 내용과 일치하지 않는다 → 로컬 유지 (아무것도 쓰지 않았다)"
+          echo "   승인 이후 gist 가 바뀌었다. 위 차이를 다시 확인받고 새 토큰으로 실행해라."
+        else
+          rm -f "$TMPF"
+          echo "⚠️ 승인 없음 → 로컬 유지 (아무것도 쓰지 않았다)"
+          echo "   위 차이를 사용자에게 보여주고 (1) 취소 / (2) 대치 를 물어라."
+          echo "   '대치'를 고른 경우에만 아래를 붙여 이 블록을 다시 실행한다:"
+          echo "     WL_APPROVED=$WL_TOKEN"
+        fi
+        ;;
+    esac
+  fi
+fi
+```
+
+복원(또는 스킵) 후 진단 CLI로 결과를 확인한다:
+
+```bash
+PROFILE_SH="$(find "$HOME/.claude/plugins/cache" "$HOME/.claude/skills" \
+  -path '*/worklog/skills/today/_profile.sh' 2>/dev/null | sort -r | head -1)"
+[ -n "$PROFILE_SH" ] && bash "$PROFILE_SH" --check || echo "worklog 플러그인 미설치 — 진단 생략"
 ```
 
 ### 5. settings
@@ -206,3 +355,4 @@ rm -f /tmp/mccm.json
 - 설치된 CLI 도구
 - 충돌 해결 결과
 - 삭제된 로컬 전용 항목 (있는 경우)
+- **worklog 프로필 적용/미적용 (반드시 명시)** — 어느 한 PC만 `/upload`에서 worklog 동기화를 켜지 않았을 때 보고서 형식이 조용히 달라지는 것을 사람이 알아챌 수 있는 유일한 장치이므로, "없어서 생략"도 항목 자체는 반드시 남긴다

@@ -1,10 +1,10 @@
 {
   "name": "env",
-  "version": "2.3.1",
+  "version": "2.4.0",
   "description": "Claude Code 환경 동기화 — Gist 기반 upload/download로 플러그인, MCP, hooks, settings, ccstatusline, CLAUDE.md를 여러 PC에서 동일 유지",
   "author": {
-    "name": "jacob",
-    "email": "jacob@litbig.com"
+    "name": "Kang-Jacob-GitLB",
+    "url": "https://github.com/Kang-Jacob-GitLB"
   },
   "license": "MIT",
   "keywords": [

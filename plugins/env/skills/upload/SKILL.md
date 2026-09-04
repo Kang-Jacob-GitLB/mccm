@@ -54,6 +54,16 @@ settings.json에서 아래 섹션을 추출한다:
 
 파일이 없으면 `ccstatusline` 필드와 clis 항목을 추가하지 않는다(기존 값이 있으면 보존).
 
+### 2-b. worklog 프로필 수집
+
+`$HOME/.config/mccm/worklog.json`(worklog 플러그인의 개인화 프로필)이 존재하고 최상위 `.sync`가 `true`이면 업로드 대상에 포함한다.
+
+**mccm.json에는 넣지 않는다.** 같은 gist의 형제 파일 `worklog.json`으로 8단계에서 별도 업로드한다 — 6단계에서 mccm.json 본문은 매번 heredoc으로 새로 조립되고, 5단계 "gist 전용 항목 감지"는 `plugins`/`mcpServers`/`hooks`/`clis`만 보므로, mccm.json 안에 손으로 넣은 키는 다음 `/upload`에서 조용히 사라질 위험이 있다.
+
+`.sync`가 `false`이거나 파일이 없으면 건너뛴다(정상, 조용히 스킵).
+
+> ⚠️ gist의 "secret"은 비공개가 아니라 **URL을 아는 누구나 접근 가능**하다는 뜻이다. 그래서 프로필에는 토큰·서버 주소·로그인 이메일을 넣지 않는다 — 각각 `JIRA_API_TOKEN` 환경변수와 `~/.config/.jira/.config.yml`이 담당한다.
+
 > **⚠️ 글리프 주의 (필독):** `ccstatusline.config`의 `powerline.separators / startCaps / endCaps` 에는 화면상 **빈 칸으로 보이는 Nerd Font PUA 글리프**(U+E0B0~U+E0BF 등)가 들어 있다. 모델이 이 내용을 Read로 읽어 mccm.json 텍스트에 **옮겨 적으면 글리프가 빈 문자열로 소실**되고, 그대로 업로드하면 **gist(단일 진실원)가 오염**되어 이후 모든 PC의 `/download`에 빈 값이 퍼진다.
 > - `ccstatusline.config`는 **절대 전사하지 않는다.** 8단계에서 파일 바이트를 `jq`로 그대로 주입한다.
 > - 업로드 후 gist의 글리프가 로컬과 일치하는지 **반드시 검증**한다(8단계).
@@ -125,7 +135,7 @@ settings.json에서 아래 섹션을 추출한다:
 `settings.env`에도 인증 정보가 들어 있을 수 있다(예: `OTEL_EXPORTER_OTLP_HEADERS`의 Basic 인증). 아래 중 하나에 해당하는 키는 **제거한 상태**로 mccm.json을 구성한다:
 
 - 키 이름에 `TOKEN`·`KEY`·`SECRET`·`AUTH`·`PASS`·`PWD`·`CREDENTIAL`·`HEADER`·`DSN` 포함 (대소문자 무시). `PAT`는 `PATH`·`PATTERN` 오탐이 나므로 쓰지 않는다.
-- 값에 `Basic `·`Bearer `가 포함 (대소문자 무시, `%20` 인코딩 변형 포함). **값의 시작이 아니라 포함 여부로 판정한다** — 실제 값은 `Authorization=Basic ...` 처럼 앞에 다른 토막이 붙는다.
+- 값에 `Basic `·`Bearer `가 포함 (대소문자 무시). **값의 시작이 아니라 포함 여부로 판정한다** — 실제 값은 `Authorization=Basic ...` 처럼 앞에 다른 토막이 붙는다. `Basic%20...` 같은 URL 인코딩 변형도 함께 본다.
 - 값에 URL 자격증명 `://사용자:비밀번호@호스트` 형태가 포함 (`HTTPS_PROXY`, `SENTRY_DSN` 등)
 
 > ⚠️ 아래 `settings.env` 항목에 인증 정보가 있어 제외했습니다:
@@ -135,6 +145,22 @@ settings.json에서 아래 섹션을 추출한다:
 > ⚠️ (2)를 선택하면 Gist에 인증 정보가 그대로 저장됩니다. secret Gist인지 반드시 확인하세요.
 
 사용자가 명시적으로 **(2) 포함**을 선택한 경우에만 포함한다. 제외해도 나머지 `env` 키는 그대로 올라가므로, 다른 PC에서는 인증 값만 직접 채워 넣으면 된다.
+
+`worklog.json`을 업로드 대상에 포함한 경우(2-b), 별도로 **값 패턴** 스캔을 한다. 이 스캔은 산문 규칙이 아니라 **8단계 업로드 블록 안에 실행 코드로 내장**되어 있다 — 8단계 블록만 실행해도 스캔이 생략되지 않는다.
+
+- 기존 필터를 그대로 쓸 수 없는 이유: 기존 필터는 키 이름에 `TOKEN`·`KEY` 등이 들어가면 제거하는 방식인데, 프로필 스키마의 `examples.issue_keys`(예: `ABC-123`) 같은 키가 "KEY" 문자열을 포함해 전량 오탐한다. 그래서 여기서는 **키 이름 문자열이 아니라 토큰 형태**를 본다 — 값과 키 경로 양쪽에 같은 규칙을 적용한다(사람이 토큰을 키 이름에 적어 두는 일이 실제로 있다).
+- 아래 패턴이 하나라도 걸리면 업로드를 중단한다. 각 규칙은 길이만이 아니라 **토큰다움**을 요구한다 — `"Keep it basic and short."`나 `Weekly_Report_For_Team_Alpha_2026` 같은 정상 값이 걸리면 사용자가 스캔 자체를 끄게 되므로, 정밀도도 안전의 일부다:
+  - `Basic`/`Bearer` 뒤에 공백 또는 `%20`이 오고, 이어지는 8자 이상 덩어리에 숫자나 `+/=`가 든 경우 (영어 문장의 "basic ..."은 걸리지 않는다)
+  - `ATATT`/`ATCTT` (Atlassian), `ghp_`/`github_pat_`/`gho_`/`ghs_` (GitHub), `xox[baprs]-`/`xapp-` (Slack), `AIza` (Google), `sk-` (OpenAI류), `AKIA` (AWS), `glpat-` (GitLab) — **값의 어느 위치에 있어도** 걸린다
+  - `://사용자:비밀번호@호스트` 형태
+  - 구분자 없이 이어진 24자 이상 영숫자 런에 숫자가 포함된 경우 (경로·URL·CamelCase 식별자는 런이 끊겨 걸리지 않는다)
+  - 40자 이상 base64 런에 숫자가 포함된 경우 / 32자 이상 16진 문자열 / UUID 형태
+- **사내 호스트명·내부 URL**은 위 패턴에 걸리지 않지만 `report_destination` 등에 가장 자연스럽게 들어갈 수 있는 값이다. 값에 사내 위키·인트라넷으로 보이는 호스트명이 보이면 패턴 매치 여부와 무관하게 사용자에게 업로드해도 되는지 확인한다.
+
+> ⚠️ worklog.json에서 아래 경로에 민감해 보이는 값이 발견되어 업로드를 중단했습니다:
+> - (JSON 경로만 표시 — **값은 표시하지 않는다**)
+>
+> 프로필에서 해당 값을 제거한 뒤 다시 시도하세요. (MCP 서버·settings.env와 달리 "포함" 선택지는 제공하지 않는다 — worklog 프로필은 개인 작업 로그이므로 토큰류가 들어갈 이유가 없다.)
 
 ### 8. gist 업데이트
 
@@ -195,6 +221,50 @@ if [ -f "$CMD_FILE" ]; then
     && echo "CLAUDE.md 검증 OK (원문 일치)" \
     || echo "⚠️ CLAUDE.md 불일치 — 본문에 적지 말고 jq --rawfile 주입으로 재시도"
 fi
+# 6) worklog.json은 mccm.json과 별개의 형제 파일로 업로드한다 (2-b 참고, mccm.json에는 넣지 않는다)
+#    이 블록만 실행해도 7단계 스캔이 생략되지 않도록, 게이트를 블록 안에 그대로 넣는다.
+WORKLOG_FILE="$HOME/.config/mccm/worklog.json"
+
+wl_scan() {   # 민감 의심 값·키 이름이 있는 JSON 경로만 출력한다. 출력이 비면 깨끗한 것이다. 값 자체는 절대 출력하지 않는다.
+  # 길이만으로는 자격증명과 평범한 식별자를 못 가른다. 그래서 각 규칙이 "토큰다움"을
+  # 요구한다 — 인증 스킴 뒤에 숫자/기호가 든 덩어리, 구분자 없는 긴 런 + 숫자, 16진/UUID.
+  # 오탐이 잦으면 사용자가 스캔을 끄게 되므로, 정밀도도 안전의 일부다.
+  jq -r '
+    def suspicious:
+        test("(basic|bearer)([ ]|%20)(?=[A-Za-z0-9+/=_.\\-]{8,})[A-Za-z0-9+/=_.\\-]*[0-9+/=]";"i")
+        or test("(ATATT|ATCTT|ghp_|github_pat_|gho_|ghs_|xox[baprs]-|xapp-|AIza|sk-|AKIA|glpat-)")
+        or test("://[^/@[:space:]]+:[^/@[:space:]]+@")
+        or test("(?=[A-Za-z0-9]{24,})[A-Za-z]*[0-9][A-Za-z0-9]*")
+        or test("(?=[A-Za-z0-9+/=]{40,})[A-Za-z+/=]*[0-9]")
+        or test("[0-9a-f]{32,}";"i")
+        or test("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";"i");
+    [paths(scalars) as $p
+     | {p:($p|join(".")), v:(getpath($p)|tostring), k:($p|map(tostring)|join(" "))}]
+    | map(select((.v | suspicious) or (.k | suspicious)))
+    | .[].p' "$1" 2>/dev/null
+}
+
+if [ -f "$WORKLOG_FILE" ] && [ "$(jq -r '.sync == true' "$WORKLOG_FILE" 2>/dev/null)" = "true" ]; then
+  # 스캔이 실패하면(jq 미설치·JSON 파손) "깨끗함"이 아니라 중단이다 — fail-closed.
+  # rc 를 버리고 출력이 비었는지만 보면, 스캔이 안 돈 파일이 그대로 올라간다.
+  if ! HITS="$(wl_scan "$WORKLOG_FILE")"; then
+    echo "⚠️ worklog.json 업로드 중단 — 민감정보 스캔 실패(jq 미설치·JSON 파손 등)." >&2
+    echo "   스캔이 돌지 않은 파일은 올리지 않는다." >&2
+  elif [ -n "$HITS" ]; then
+    echo "⚠️ worklog.json 업로드 중단 — 민감 의심 값 경로(값은 표시하지 않는다):" >&2
+    # "$HITS" 를 인용하지 않으면 경로 안의 * ? [ 가 글로브로 전개돼 진짜 히트가 묻힌다.
+    printf '%s\n' "$HITS" | sed 's/^/  - /' >&2
+  else
+    gh gist edit "$GIST_ID" --filename worklog.json --add "$WORKLOG_FILE"
+
+    # 7) 업로드 검증: gist의 worklog.json이 로컬 파일과 값 기준으로 동일한지
+    diff <(gh gist view "$GIST_ID" --filename worklog.json | jq -S .) \
+         <(jq -S . "$WORKLOG_FILE") >/dev/null \
+      && echo "worklog 프로필 업로드 검증 OK" \
+      || echo "⚠️ worklog 프로필 불일치 — 재시도"
+  fi
+fi
+
 rm -f /tmp/mccm-base.json /tmp/mccm.json /tmp/mccm2.json /tmp/cmd.lf
 ```
 
@@ -207,4 +277,5 @@ rm -f /tmp/mccm-base.json /tmp/mccm.json /tmp/mccm2.json /tmp/cmd.lf
 - 추출된 설정 항목 수
 - ccstatusline 설정 포함 여부 (위젯 라인/항목 수)
 - CLAUDE.md 포함 여부 (줄 수) 및 검증 결과
+- worklog 프로필 업로드 여부 (스캔 결과 포함)
 - 삭제된 Gist 전용 항목 (있는 경우)

@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # jira_week.sh — 한 주(기본: 이번 주 월~오늘, KST) 동안 내가 등록한 Jira 워크로그를
-#   조회·집계해 JSONL + 결정적 요약으로 출력한다. 노션 등 주간보고 텍스트의 입력 데이터.
+#   조회·집계해 JSONL + 결정적 요약으로 출력한다. 주간보고 텍스트의 입력 데이터.
 #
 # ⚠ 읽기 전용 — 워크로그를 입력/수정/삭제하지 않는다(REST GET + jira issue list 만 사용).
 #
-# 출력(stdout) 2단:
+# 출력(stdout) 3단:
+#   0) "===PROFILE===" 로컬 개인 설정(있으면). "===RECORDS===" 까지가 이 블록이다.
+#      서술 스타일·고유명사만 담으며 집계 숫자에는 영향하지 않는다.
 #   1) 워크로그 레코드 JSONL (1줄=1워크로그). comment 는 ADF 를 평탄화한 텍스트:
 #      {"date","key","summary","status","started","seconds","time","comment"}
 #   2) "===SUMMARY===" 구분선 후 결정적 집계(기간/총합/이슈별/일자별) — 사람이 읽는 텍스트.
@@ -49,6 +51,7 @@ jqr() { jq "$@" | tr -d '\r'; }
 
 # 공통 TZ 유틸 (tzdata 부재 환경에서도 날짜 경계가 9시간 어긋나지 않게).
 . "$(dirname "${BASH_SOURCE[0]}")/_tz.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/_profile.sh"
 tz_setup "$TZ_IANA"
 
 valid_date() { case "$1" in [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) return 0 ;; *) return 1 ;; esac; }
@@ -173,6 +176,15 @@ done < <(printf '%s' "$search" \
            | jqr -r '.issues[]? | [.key, (.fields.summary // ""), (.fields.status.name // "")] | @tsv')
 wait
 cat "$TMPD"/*.jsonl > "$TMP" 2>/dev/null || true
+
+# ── 출력 0단: 개인 프로필 ─────────────────────────────────────
+# 설정이 없어도 마커는 항상 낸다. 3단 구조가 조건부로 흔들리면 SKILL.md 의
+# 파싱 계약이 깨진다(===SUMMARY=== 이후 집계 블록은 이 변경과 무관하게 동일).
+echo "===PROFILE==="
+wp_render || true
+# 앞줄이 개행 없이 끝나도 구분자가 앞줄에 이어붙지 않도록 선행 개행을 붙인다.
+# wp_render 는 줄 경계에서만 자르지만, 구분자는 프로필 가드가 기대는 축이라 이중으로 막는다.
+printf '\n===RECORDS===\n'
 
 # ── 출력 1단: 레코드 JSONL (started 기준 정렬) ────────────────
 jqr -c -s 'sort_by(.started)[]' "$TMP" 2>/dev/null || true
