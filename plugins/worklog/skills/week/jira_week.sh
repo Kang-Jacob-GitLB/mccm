@@ -82,7 +82,10 @@ login=$(grep -E '^login:'  "$cfg" | head -1 | sed -E 's/^login:[[:space:]]*//; s
 auth=$(printf '%s:%s' "$login" "$JIRA_API_TOKEN" | base64 -w0)
 
 api() {  # $1=경로(/rest/...) → stdout JSON. 실패해도 비치명적(빈 출력).
-  curl -s -H "Authorization: Basic $auth" -H "Accept: application/json" "$server$1" 2>/dev/null || true
+  # 토큰을 argv 로 넘기지 않는다 — 같은 호스트의 다른 프로세스가 ps 로 읽어 간다.
+  # today/_jira.sh:45-47 과 동일한 stdin 헤더(-H @-) 방식.
+  printf 'Authorization: Basic %s\n' "$auth" \
+    | curl -s -H @- -H "Accept: application/json" "$server$1" 2>/dev/null || true
 }
 
 # 내 계정 식별(accountId 가 가장 신뢰도 높음; emailAddress 는 GDPR 로 가려질 수 있음).
@@ -160,7 +163,10 @@ cat "$TMPD"/*.jsonl > "$TMP" 2>/dev/null || true
 jqr -c -s 'sort_by(.started)[]' "$TMP" 2>/dev/null || true
 
 # ── 출력 2단: 결정적 집계 ────────────────────────────────────
-sec2hm() { local s=${1:-0} h m o=""; h=$((s/3600)); m=$(((s%3600)/60)); [ "$h" -gt 0 ] && o="${h}h"; [ "$m" -gt 0 ] && o="${o:+$o }${m}m"; echo "${o:-0m}"; }
+# Jira 응답에서 온 값이 그대로 $(( )) 에 들어가면 명령 치환이 평가된다.
+# (seconds 는 .timeSpentSeconds 원본이고, jq 의 add 는 문자열이면 연결해 버린다 — :130,:172)
+num() { case "${1:-}" in ''|*[!0-9]*) echo 0 ;; *) echo $((10#$1)) ;; esac; }
+sec2hm() { local s h m o=""; s=$(num "${1:-0}"); h=$((s/3600)); m=$(((s%3600)/60)); [ "$h" -gt 0 ] && o="${h}h"; [ "$m" -gt 0 ] && o="${o:+$o }${m}m"; echo "${o:-0m}"; }
 wd() { local u; u=$(date -d "$1" +%u 2>/dev/null) || { echo "?"; return; }; local a=(월 화 수 목 금 토 일); echo "${a[$((u-1))]}"; }
 
 echo "===SUMMARY==="
@@ -179,7 +185,7 @@ agg=$(jqr -r -s '
 issues=(); days=(); tot=0; ni=0; nd=0; nw=0
 while IFS=$'\t' read -r tag a b c d e; do
   case "${tag:-}" in
-    T) tot=$a; ni=$b; nd=$c; nw=$d ;;
+    T) tot=$(num "$a"); ni=$(num "$b"); nd=$(num "$c"); nw=$(num "$d") ;;
     I) issues+=("$(printf '  %-18s %-8s (%s건)  %-12s %s' "$a" "$(sec2hm "$b")" "$c" "${d:-?}" "$e")") ;;
     D) days+=("$(printf '  %s(%s)  %-8s (%s건)' "$a" "$(wd "$a")" "$(sec2hm "$b")" "$c")") ;;
   esac
