@@ -1,6 +1,6 @@
 {
   "name": "worklog",
-  "version": "2.2.2",
+  "version": "2.2.3",
   "description": "Claude Code 트랜스크립트·Jira 워크로그 기반 워크로그 도구. today: prep.sh 로 활동·커밋·Jira 후보·당일 워크로그를 동시 수집(병렬·압축) → 30분 슬롯 타임라인 + jira CLI 워크로그 입력(dry-run/추정매핑/30분 반올림/겹침·점심 회피/멀티라인 코멘트). week: 이번 주 Jira 워크로그 집계 → 노션용 주간보고 텍스트(읽기 전용). hook 불필요.",
   "author": {
     "name": "jacob",
