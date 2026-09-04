@@ -12,7 +12,8 @@ GitHub Gist의 `mccm.json`으로 여러 PC의 Claude Code 환경(플러그인, M
 2. `plugins/{플러그인}/.claude-plugin/plugin.json` — description, keywords 반영
 3. `.claude-plugin/marketplace.json` — description 반영
 4. `README.md` — 스킬 목록 테이블, 플러그인 구조 트리 반영
-5. 버전업 — `plugin.json` + `marketplace.json` 동시 변경
+5. 워크로그 프로필 스키마를 바꿀 때는 `_profile.sh`(today·week **두 사본** — `diff`로 동일 확인), today·week SKILL.md의 대체 규칙, `worklog.example.json`, env의 download/upload 단계, README를 **함께** 고친다. (`_profile.sh`는 두 벌 존재한다 — 기존 `_tz.sh` 두 사본이 이미 어긋나 있는 것이 선례다: today 86행 / week 75행. 그래서 `bash plugins/worklog/skills/today/_profile.sh --check`에 두 사본 `cmp` 자기 검사를 넣어 두었다: 어긋나면 rc2로 실패한다. 어느 쪽에서 실행해도 발화하지만 **호출해야만 돈다** — 커밋 전에 직접 돌려라.)
+6. 버전업 — `plugin.json` + `marketplace.json` 동시 변경
    - 호환 깨지는 변경 (스킬 삭제, 슬롯 이름 변경): major (1.1.0 → 2.0.0)
    - 새 기능 추가 (스킬 추가): minor (1.1.0 → 1.2.0)
    - 버그 수정, 문구 수정: patch (1.1.0 → 1.1.1)

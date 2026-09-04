@@ -1,10 +1,10 @@
 {
   "name": "worklog",
-  "version": "2.2.4",
-  "description": "Claude Code 트랜스크립트·Jira 워크로그 기반 워크로그 도구. today: prep.sh 로 활동·커밋·Jira 후보·당일 워크로그를 동시 수집(병렬·압축) → 30분 슬롯 타임라인 + jira CLI 워크로그 입력(dry-run/추정매핑/30분 반올림/겹침·점심 회피/멀티라인 코멘트). week: 이번 주 Jira 워크로그 집계 → 노션용 주간보고 텍스트(읽기 전용). hook 불필요.",
+  "version": "2.3.0",
+  "description": "Claude Code 트랜스크립트·Jira 워크로그 기반 워크로그 도구. today: prep.sh 로 활동·커밋·Jira 후보·당일 워크로그를 동시 수집(병렬·압축) → 30분 슬롯 타임라인 + jira CLI 워크로그 입력(dry-run/추정매핑/30분 반올림/겹침·점심 회피/멀티라인 코멘트). week: 이번 주 Jira 워크로그 집계 → 주간보고 텍스트(읽기 전용). hook 불필요.",
   "author": {
-    "name": "jacob",
-    "email": "jacob@litbig.com"
+    "name": "Kang-Jacob-GitLB",
+    "url": "https://github.com/Kang-Jacob-GitLB"
   },
   "license": "MIT",
   "keywords": [
@@ -13,8 +13,7 @@
     "timeline",
     "transcript",
     "weekly-report",
-    "productivity",
-    "litbig"
+    "productivity"
   ],
   "requirements": {
     "note": "외부 도구 의존: jq(JSON 파싱·필수), jira(ankitpokhrel/jira-cli, worklog 입력 시), curl+base64(겹침회피 REST 조회 시), gws(npm @googleworkspace/cli, 권장 — Google Calendar 회의 병합 시). jira 입력은 `jira init`(server/login) + JIRA_API_TOKEN env 선행 필요. 회의 병합은 `gws auth login` 선행 필요(미설치/미인증 시 조용히 스킵). (hook/node 불필요 — Claude Code 트랜스크립트 직접 파싱)",

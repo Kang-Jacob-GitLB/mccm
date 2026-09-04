@@ -15,11 +15,12 @@
 #     --max N      섹션당 최대 줄수(기본 60, 토큰 방어).
 #     -h|--help
 #
-# 출력 섹션: ISSUE(옵션) / ACTIVITY(prompts) / COMMITS / JIRA_CANDIDATES / WORKLOGS_TODAY.
+# 출력 섹션: PROFILE / ISSUE(옵션) / ACTIVITY(prompts) / COMMITS / JIRA_CANDIDATES / WORKLOGS_TODAY.
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/_tz.sh"
 . "$DIR/_jira.sh"
+. "$DIR/_profile.sh"
 
 DATE="" SINCE="" UNTIL="" ISSUE="" PROJECT="" MAX=60
 while [ $# -gt 0 ]; do
@@ -71,6 +72,11 @@ wait 2>/dev/null || true
 # ── 출력(압축) ──
 WIN="$DATE"; [ -n "$SINCE" ] && WIN="$WIN ${SINCE}~"; [ -n "$UNTIL" ] && WIN="$WIN~${UNTIL}"
 printf '# WORKLOG PREP · %s\n' "$WIN"
+
+# 개인 프로필(있으면). 설정이 없어도 항상 같은 형태로 낸다 — 섹션이 조건부로
+# 나타났다 사라지면 SKILL.md 의 출력 섹션 목록과 실제가 어긋난다.
+printf '\n'
+wp_render || true
 
 if [ -n "$ISSUE" ] && [ -s "$TMP/issue.txt" ]; then
   printf '\n## ISSUE %s\n' "$ISSUE"; cat "$TMP/issue.txt"

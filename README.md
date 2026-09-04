@@ -19,7 +19,7 @@ env 플러그인은 `mccm.json` 파일 하나에 환경 전체를 선언적으�
 
 > **⚠️ 보안 주의:**
 > - **MCP 토큰:** `env` 키(API 토큰 등)가 포함된 MCP 서버는 업로드 시 기본 제외됩니다. 명시적으로 선택해야 포함됩니다.
-> - **설정 토큰:** `settings.json`의 `env`에 든 인증 정보(키 이름에 `TOKEN`·`KEY`·`SECRET`·`AUTH`·`PASS`·`HEADER`·`DSN` 등이 있거나, 값에 `Basic`/`Bearer` 또는 URL 자격증명(`://user:pass@host`)이 포함된 항목)도 업로드 시 기본 제외됩니다. 명시적으로 선택해야 포함됩니다.
+> - **설정 토큰:** `settings.json`의 `env`에 든 인증 정보(키 이름에 `TOKEN`·`KEY`·`SECRET`·`AUTH`·`PASS`·`PWD`·`CREDENTIAL`·`HEADER`·`DSN` 등이 있거나, 값에 `Basic`/`Bearer` 또는 URL 자격증명(`://user:pass@host`)이 포함된 항목)도 업로드 시 기본 제외됩니다. 명시적으로 선택해야 포함됩니다.
 > - **CLI 도구:** `clis`의 `check`/`install` 명령은 실행 전 사용자 승인이 필요합니다.
 > - **hooks:** 새 hook 추가 시 사용자 확인을 거칩니다.
 > - **Gist 선택:** 동일 파일명의 Gist가 여러 개이면 자동 선택 없이 사용자가 직접 고릅니다.
@@ -71,14 +71,16 @@ env 플러그인은 `mccm.json` 파일 하나에 환경 전체를 선언적으�
 
 ### worklog — 일일/주간 워크로그
 
-`today`는 Claude Code가 세션마다 남기는 트랜스크립트(`~/.claude/projects/<cwd-slug>/<session-id>.jsonl`)를 직접 파싱해 하루치 작업을 정리한다. 별도 hook 설치가 필요 없어 새 머신에서도 셋업 0으로 동작한다. 데이터 수집은 `prep.sh` 한 번 호출로 활동·커밋·Jira 후보·당일 워크로그를 **동시 수집**해 압축 리포트로 내며(트랜스크립트 스캔과 Jira 조회를 병렬 실행, 시각변환·경로 basename·프로젝트 해결을 스크립트가 처리해 빠르고 토큰을 아낀다), 하루를 30분 슬롯 타임라인으로 시각화한다. 선택적으로 `jira` CLI로 워크로그 입력 후보를 추정·dry-run 미리보기·실제 입력까지 반자동화한다(30분 반올림, 같은 날 기존 워크로그·점심시간 회피, 멀티라인 코멘트). 주간보고가 필요하면 `week`가 이번 주(또는 지난주) 내 Jira 워크로그를 집계해 노션 등에 붙여넣을 주간보고 텍스트를 만든다(읽기 전용).
+`today`는 Claude Code가 세션마다 남기는 트랜스크립트(`~/.claude/projects/<cwd-slug>/<session-id>.jsonl`)를 직접 파싱해 하루치 작업을 정리한다. 별도 hook 설치가 필요 없어 새 머신에서도 셋업 0으로 동작한다. 데이터 수집은 `prep.sh` 한 번 호출로 활동·커밋·Jira 후보·당일 워크로그를 **동시 수집**해 압축 리포트로 내며(트랜스크립트 스캔과 Jira 조회를 병렬 실행, 시각변환·경로 basename·프로젝트 해결을 스크립트가 처리해 빠르고 토큰을 아낀다), 하루를 30분 슬롯 타임라인으로 시각화한다. 선택적으로 `jira` CLI로 워크로그 입력 후보를 추정·dry-run 미리보기·실제 입력까지 반자동화한다(30분 반올림, 같은 날 기존 워크로그·점심시간 회피, 멀티라인 코멘트). 주간보고가 필요하면 `week`가 이번 주(또는 지난주) 내 Jira 워크로그를 집계해 문서 도구 등에 붙여넣을 주간보고 텍스트를 만든다(읽기 전용).
 
 | 스킬 | 설명 |
 |------|------|
 | [today](plugins/worklog/skills/today/) | 오늘(또는 지정일) 트랜스크립트 → `prep.sh` 동시 수집(활동·커밋·Jira 후보·당일 워크로그) → 시간대·프로젝트·커밋·prompt 주제 요약 + 30분 슬롯 타임라인 + Jira 워크로그 dry-run/apply(멀티라인 코멘트) |
-| [week](plugins/worklog/skills/week/) | 이번 주(또는 지난주/지정 범위) 내 Jira 워크로그 집계 → 이슈별/일자별 시간 + 코멘트 기반 작업 서술을 노션용 주간보고 마크다운으로 출력 (읽기 전용) |
+| [week](plugins/worklog/skills/week/) | 이번 주(또는 지난주/지정 범위) 내 Jira 워크로그 집계 → 이슈별/일자별 시간 + 코멘트 기반 작업 서술을 문서 도구용 주간보고 마크다운으로 출력 (읽기 전용) |
 
 **사전 요구사항:** `today` 요약은 `jq`만 있으면 동작(트랜스크립트 직접 파싱). Jira 워크로그 입력(`today`)·주간 집계(`week`)는 [`jira` CLI](https://github.com/ankitpokhrel/jira-cli)(`jira init` + `JIRA_API_TOKEN` env) + `curl`·`base64`·`jq` 필요.
+
+**개인화(선택):** 표시 이름·보고서 문체·이슈키 예시·주간보고 템플릿 등을 자신에게 맞추려면 `plugins/worklog/worklog.example.json`을 `~/.config/mccm/worklog.json`으로 복사해 값을 채운다. 설정이 없어도 `today`·`week`는 SKILL.md 기본 규칙 그대로 동작한다 — 개인화는 선택이지 필수가 아니다. 자세한 위치·검증 방법은 아래 「워크로그 개인화」 절 참고.
 
 ## 설치 방법
 
@@ -120,6 +122,40 @@ claude plugin install env@mccm
 - protected-branches: main, master, develop
 ```
 
+## 워크로그 개인화
+
+`worklog` 플러그인(`today`·`week`)은 표시 이름·보고서 문체·이슈키 예시·주간보고 템플릿 같은 개인·사내 고유값을 **저장소 밖** `~/.config/mccm/worklog.json`에서 읽는다. 이 저장소는 public이므로 저장소 안에는 중립 값의 `plugins/worklog/worklog.example.json`만 커밋되어 있다.
+
+**설정 파일 탐색 순서** (`_profile.sh`가 첫 번째로 존재하는 경로 1개만 사용, 병합하지 않음):
+
+1. `MCCM_WORKLOG_CONFIG` 환경변수가 가리키는 경로
+2. `$XDG_CONFIG_HOME/mccm/worklog.json`
+3. `$HOME/.config/mccm/worklog.json`
+4. `%USERPROFILE%\.config\mccm\worklog.json` / `%APPDATA%\mccm\worklog.json` (Git Bash의 `HOME`이 Windows 사용자 폴더와 갈릴 때 대비)
+
+**적용 방법:**
+
+```bash
+cp plugins/worklog/worklog.example.json ~/.config/mccm/worklog.json
+# 이후 identity·examples·report 값을 자신에게 맞게 편집
+```
+
+**설정이 없어도 정상 동작한다.** `_profile.sh`가 존재하지 않는 설정을 rc0으로 처리하고, `today`·`week`는 각 SKILL.md의 기본 규칙으로 그대로 동작한다 — 개인화는 기능이 아니라 표현·문체에만 영향을 준다.
+
+**검사:**
+
+```bash
+bash plugins/worklog/skills/today/_profile.sh --check
+```
+설정 없음(INFO), 스키마 위반(WARN), 파일 손상(FAIL) 상태를 알려준다. 겸해서 `today`·`week`의 `_profile.sh` 두 사본이 어긋났는지 `cmp`로 검사한다 — 이 파일은 프롬프트 주입 필터라 한쪽만 고치면 나머지 스킬이 조용히 취약해진다. 어긋나면 rc2로 실패하며, 어느 쪽 경로로 실행해도 발화한다.
+
+> **⚠️ 비밀을 넣지 말 것:**
+> - Jira API 토큰은 `worklog.json`이 아니라 `JIRA_API_TOKEN` 환경변수가 담당한다.
+> - Jira 서버 주소·로그인 이메일은 `worklog.json`이 아니라 `~/.config/.jira/.config.yml`이 담당한다.
+> - 여러 PC 동기화가 필요하면 `sync: true`로 두고 `/upload`가 env gist의 형제 파일 `worklog.json`으로 함께 올리게 할 수 있다. 다만 gist의 "secret"은 비공개가 아니라 **URL을 아는 누구나 접근 가능**하다는 뜻이므로 URL 공유에 주의한다.
+>
+> **금칙어:** 향후 `worklog.json`의 스칼라 값을 `settings.json`의 `env`로 빼서 관리할 경우, 변수명에 `TOKEN`·`KEY`·`SECRET`·`AUTH`·`PASS`·`PWD`·`CREDENTIAL`·`HEADER`·`DSN`이 들어가면 `/upload`가 gist에서 **조용히 지운다**(`plugins/env/skills/upload/SKILL.md`의 민감정보 필터).
+
 ## 플러그인 구조
 
 ```
@@ -160,11 +196,13 @@ mccm/
     └── worklog/
         ├── .claude-plugin/
         │   └── plugin.json
+        ├── worklog.example.json     ← 개인화 프로필 예시(중립값, 실값은 ~/.config/mccm/worklog.json)
         └── skills/
             ├── today/
             │   ├── SKILL.md
             │   ├── _tz.sh
             │   ├── _jira.sh
+            │   ├── _profile.sh      ← 개인화 프로필 로더(+ --check 진단 CLI)
             │   ├── collect.sh
             │   ├── prep.sh
             │   ├── timeline.sh
@@ -172,6 +210,7 @@ mccm/
             └── week/
                 ├── SKILL.md
                 ├── _tz.sh
+                ├── _profile.sh      ← today/_profile.sh 의 바이트 사본
                 └── jira_week.sh
 ```
 

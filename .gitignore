@@ -7,6 +7,10 @@
 # mccm.json is managed via gist
 plugins/env/mccm.json
 
+# worklog 개인 프로필은 ~/.config·gist 에만 둔다
+plugins/worklog/**/worklog.json
+worklog.json
+
 # Environment
 .env
 .env.*
