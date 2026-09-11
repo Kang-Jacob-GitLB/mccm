@@ -47,7 +47,7 @@ env 플러그인은 `mccm.json` 파일 하나에 환경 전체를 선언적으�
 | [brief](plugins/dev/skills/brief/) | 비개발자용 브리핑 스킬 — 코드·PR부터 개념·기술 선택·일정까지 무엇이든 기획·PM·영업·경영진이 이해할 HTML Artifact로. 설명의 대부분을 인라인 SVG 그림이 지고 글은 그림이 못 하는 것만 남긴다. 은유는 독자의 업무(결재·재고·검사 라인 등)에서 가져오고, 「그래서 무엇을 하면 되는가」로 닫는다 |
 | [meta-prompting](plugins/dev/skills/meta-prompting/) | goal 프롬프트 다듬기 — 대화형 인터뷰로 정보를 좁히고 `dev:explorer`로 코드 앵커를 찾아 4천 자 이내 명령형 프롬프트를 완성, 코드블록 출력 + 파일 저장 |
 
-**서브에이전트 로스터 (모델 티어링)** — 워크플로·병렬 작업에서 `agentType`으로 라우팅하는 17종 전담 에이전트. 판단 난이도별 3티어(T0 haiku / T1 sonnet / T2 opus)와 위임 권한·부작용 축·강등 규칙은 [`model-routing.md`](plugins/dev/model-routing.md)에 정의되며, SessionStart 훅으로 메인 세션에 주입된다. 문서 최상단의 「위임 권한」 절은 위임을 억제하는 하네스 기본 지시와 충돌할 때 **이 정책이 우선**임을 규정한다 — 하네스는 위임 억제를 기본값으로 붙이지만, 사용자 통제 계층의 정책이 이를 덮는다.
+**서브에이전트 로스터 (모델 티어링)** — 워크플로·병렬 작업에서 `agentType`으로 라우팅하는 16종 전담 에이전트. 판단 난이도별 3티어(T0 haiku / T1 sonnet / T2 opus)와 위임 권한·부작용 축·강등 규칙은 [`model-routing.md`](plugins/dev/model-routing.md)에 정의되며, SessionStart 훅으로 메인 세션에 주입된다. 문서 최상단의 「위임 권한」 절은 위임을 억제하는 하네스 기본 지시와 충돌할 때 **이 정책이 우선**임을 규정한다 — 하네스는 위임 억제를 기본값으로 붙이지만, 사용자 통제 계층의 정책이 이를 덮는다.
 
 | 티어 | 에이전트 | 역할 |
 |------|---------|------|
@@ -67,7 +67,6 @@ env 플러그인은 `mccm.json` 파일 하나에 환경 전체를 선언적으�
 | T2 `opus` | verifier | 적대적 검증 (반증 시도) |
 | T2 `opus` | synthesizer | 다중 결과 합성·최종 판정 |
 | T2 `opus` | debugger | 증상→원인 동적 진단 (유일한 T2 쓰기 권한) |
-| T2 `opus` | advisor | 접근법 검토·막힌 지점 진단·완료 직전 점검 (메인만 호출) |
 
 ### worklog — 일일/주간 워크로그
 
@@ -175,7 +174,7 @@ mccm/
     │   ├── .claude-plugin/
     │   │   └── plugin.json
     │   ├── model-routing.md         ← 티어 정책 (SessionStart 훅으로 주입)
-    │   ├── agents/                  ← 서브에이전트 17종 (*.md)
+    │   ├── agents/                  ← 서브에이전트 16종 (*.md)
     │   └── skills/
     │       ├── commit/
     │       │   └── SKILL.md
@@ -218,4 +217,4 @@ mccm/
 
 1. `plugins/{플러그인}/skills/{skill-name}/SKILL.md` 작성
 2. PR 생성 → 리뷰 → 머지
-3. 사용자는 세션 시작 시 자동 업데이트 (또는 `claude plugin marketplace update mccm`)
+3. 사용자는 세션 시작 시 자동 업데이트 — `dev` 플러그인의 SessionStart 훅이 **하루 1회**만 `claude plugin marketplace update mccm`을 돌린다(스탬프: `~/.config/mccm/marketplace-update.date`). 즉시 반영하려면 직접 실행하거나 스탬프 파일을 지운다
