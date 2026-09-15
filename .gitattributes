@@ -1,0 +1,6 @@
+# 줄끝을 LF로 통일한다. 셸 스크립트·프런트매터 파서(awk '/^---$/' 등)가 CR에 걸려
+# 오동작한 선례가 있어, 체크아웃 시에도 CRLF로 바꾸지 않는다(core.autocrlf 무시).
+* text=auto eol=lf
+*.sh   text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
