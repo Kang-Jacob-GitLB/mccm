@@ -323,7 +323,7 @@ else
   #    플랫폼에 따라 줄바꿈이 달라져 바이트 비교가 상시 "다름"으로 나온다.
   if [ ! -f "$DST" ]; then
     STATE="없음"
-  elif diff <(jq '.claudeMd' /tmp/mccm.json) <(sed 's/$//' "$DST" | jq -Rs .) >/dev/null; then
+  elif diff <(jq '.claudeMd' /tmp/mccm.json) <(sed 's/\r$//' "$DST" | jq -Rs .) >/dev/null; then
     STATE="동일"
   else
     STATE="다름"
@@ -335,10 +335,10 @@ else
   #    쓸 때 LF 로 정규화한다(Windows jq 는 raw 출력에서 CRLF 를 낸다).
   if [ "$STATE" != "동일" ]; then
     mkdir -p "$HOME/.claude"
-    jq -j '.claudeMd' /tmp/mccm.json | sed 's/$//' > "$DST"
+    jq -j '.claudeMd' /tmp/mccm.json | sed 's/\r$//' > "$DST"
 
     # 3) 기록 후 검증
-    diff <(jq '.claudeMd' /tmp/mccm.json) <(sed 's/$//' "$DST" | jq -Rs .) >/dev/null       && echo "검증 OK (원문 일치)"       || echo "⚠️ 불일치 — jq 파이프로 재시도(전사 금지)"
+    diff <(jq '.claudeMd' /tmp/mccm.json) <(sed 's/\r$//' "$DST" | jq -Rs .) >/dev/null       && echo "검증 OK (원문 일치)"       || echo "⚠️ 불일치 — jq 파이프로 재시도(전사 금지)"
   fi
 fi
 rm -f /tmp/mccm.json
