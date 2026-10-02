@@ -11,7 +11,8 @@
 #      {"date","key","summary","status","started","seconds","time","comment",
 #       "project","title","done","resolved","end"}
 #      project = summary 맨 앞 [태그] (없으면 "공통·경상"), title = 태그를 뗀 summary,
-#      done = 상태 카테고리가 done, resolved = 해결일, end = End date 필드(없으면 기한).
+#      done = 상태 카테고리가 done, resolved = 해결일, end = End date 필드(없으면 기한),
+#      recurring = summary 에 "경상" 이 든 상시 이슈(마감 대신 워크로그별 날짜로 표기).
 #   2) "===SUMMARY===" 구분선 후 결정적 집계(기간/총합/프로젝트별/이슈별/일자별) — 사람이 읽는 텍스트.
 #      (LLM 이 1)로 서술을 쓰고 2)로 정확한 시간 합계를 검증한다.)
 #
@@ -153,6 +154,7 @@ def adf2txt:
     project:(($summary | capture("^\\s*\\[(?<p>[^\\]]+)\\]")? | .p) // "공통·경상"),
     title:($summary | sub("^\\s*\\[[^\\]]+\\]\\s*";"")),
     done:($done=="true"),
+    recurring:($summary | test("경상")),
     resolved:(if ($resolved|test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")) then $resolved else null end),
     end:(if ($end|test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")) then $end else null end) }
 JQ
@@ -226,19 +228,25 @@ echo "기간: ${START}($(wd "$START")) ~ ${END}($(wd "$END"))"
 #   T <총초> <이슈수> <근무일수> <워크로그수> · I <키> <초> <건> <상태> <요약> · D <일> <초> <건>
 #   P <프로젝트> <초> <이슈수> · J <키> <초> <건> <날짜태그> <제목>  (P 바로 뒤에 그 프로젝트의 J 들)
 #   날짜태그: 완료면 "완료 · M/D"(해결일), 아니면 "진행 · ~M/D"(End date, 없으면 기한). 날짜 없으면 날짜 생략.
+#     경상 이슈(recurring)는 마감이 연말이라 의미가 없으므로 "상시" 로 두고, J 바로 뒤에
+#     W <M/D> <코멘트> 행으로 워크로그마다의 날짜를 낸다(started 순).
 agg=$(jqr -r -s '
   def md: split("-") | "\(.[1]|tonumber)/\(.[2]|tonumber)";
-  def dtag: if .done then "완료" + (if .resolved then " · " + (.resolved|md) else "" end)
+  def dtag: if .recurring then "상시"
+            elif .done then "완료" + (if .resolved then " · " + (.resolved|md) else "" end)
             else "진행" + (if .end then " · ~" + (.end|md) else "" end) end;
   ( ["T", (map(.seconds)|add // 0), ([.[].key]|unique|length), ([.[].date]|unique|length), length] | @tsv ),
   ( group_by(.project)
     | map({p:.[0].project, sec:(map(.seconds)|add),
            js:(group_by(.key) | map({k:.[0].key, sec:(map(.seconds)|add), c:length,
-                                     t:(.[0]|dtag), ti:(.[0].title | if .=="" then "-" else . end)})
+                                     t:(.[0]|dtag), ti:(.[0].title | if .=="" then "-" else . end),
+                                     ws:(if .[0].recurring
+                                         then sort_by(.started) | map({d:(.date|md), c:(.comment | if .=="" then "-" else . end)})
+                                         else [] end)})
                | sort_by(-.sec))})
     | sort_by((.p=="공통·경상"), -.sec)[]
     | (["P", .p, .sec, (.js|length)] | @tsv),
-      (.js[] | ["J", .k, .sec, .c, .t, .ti] | @tsv) ),
+      (.js[] | (["J", .k, .sec, .c, .t, .ti] | @tsv), (.ws[] | ["W", .d, .c] | @tsv)) ),
   ( group_by(.key)  | map({k:.[0].key, st:.[0].status, su:.[0].summary, sec:(map(.seconds)|add), c:length})
     | sort_by(-.sec)[] | ["I", .k, .sec, .c, .st, .su] | @tsv ),
   ( group_by(.date) | map({d:.[0].date, sec:(map(.seconds)|add), c:length})
@@ -252,6 +260,7 @@ while IFS=$'\t' read -r tag a b c d e; do
     I) issues+=("$(printf '  %-18s %-8s (%s건)  %-12s %s' "$a" "$(sec2hm "$b")" "$c" "${d:-?}" "$e")") ;;
     P) projs+=("$(printf '  %s — %s (이슈 %s건)' "$a" "$(sec2hm "$b")" "$c")") ;;
     J) projs+=("$(printf '    %-18s %-8s (%s건)  %s  %s' "$a" "$(sec2hm "$b")" "$c" "$d" "$e")") ;;
+    W) projs+=("$(printf '        %-6s %s' "$a" "$b")") ;;
     D) days+=("$(printf '  %s(%s)  %-8s (%s건)' "$a" "$(wd "$a")" "$(sec2hm "$b")" "$c")") ;;
   esac
 done <<< "$agg"
@@ -262,7 +271,7 @@ if [ "${nw:-0}" -eq 0 ]; then
 fi
 echo "총합: $(sec2hm "$tot") · 이슈 ${ni}건 · 근무일 ${nd}일 · 워크로그 ${nw}건"
 echo
-echo "[프로젝트별] (시간 내림차순 · 공통·경상은 마지막 · 날짜: 완료=해결일, 진행=~End date)"
+echo "[프로젝트별] (시간 내림차순 · 공통·경상은 마지막 · 날짜: 완료=해결일, 진행=~End date, 상시(경상)=워크로그별)"
 printf '%s\n' "${projs[@]}"
 echo
 echo "[이슈별] (시간 내림차순)"
