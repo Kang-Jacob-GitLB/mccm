@@ -8,8 +8,12 @@
 #   0) "===PROFILE===" 로컬 개인 설정(있으면). "===RECORDS===" 까지가 이 블록이다.
 #      서술 스타일·고유명사만 담으며 집계 숫자에는 영향하지 않는다.
 #   1) 워크로그 레코드 JSONL (1줄=1워크로그). comment 는 ADF 를 평탄화한 텍스트:
-#      {"date","key","summary","status","started","seconds","time","comment"}
-#   2) "===SUMMARY===" 구분선 후 결정적 집계(기간/총합/이슈별/일자별) — 사람이 읽는 텍스트.
+#      {"date","key","summary","status","started","seconds","time","comment",
+#       "project","title","done","resolved","end"}
+#      project = summary 맨 앞 [태그] (없으면 "공통·경상"), title = 태그를 뗀 summary,
+#      done = 상태 카테고리가 done, resolved = 해결일, end = End date 필드(없으면 기한),
+#      recurring = summary 에 "경상" 이 든 상시 이슈(마감 대신 워크로그별 날짜로 표기).
+#   2) "===SUMMARY===" 구분선 후 결정적 집계(기간/총합/프로젝트별/이슈별/일자별) — 사람이 읽는 텍스트.
 #      (LLM 이 1)로 서술을 쓰고 2)로 정확한 시간 합계를 검증한다.)
 #
 # 사용법:
@@ -111,7 +115,12 @@ IFS=$'\t' read -r my_acct my_email < <(printf '%s' "$myself" | jqr -r '[.account
 # 신 /rest/api/3/search/jql).
 jql="worklogAuthor = currentUser() AND worklogDate >= \"$START\" AND worklogDate <= \"$END\""
 enc=$(jqr -rn --arg q "$jql" '$q|@uri' || true)
-search=$(api "/rest/api/3/search/jql?jql=$enc&fields=summary,status&maxResults=100")
+# 진행 이슈의 마감 표기용 "End date" 커스텀 필드 id 는 인스턴스마다 다르다 → 이름으로 찾는다.
+# 못 찾으면 기한(duedate)만 쓴다. id 는 URL 에 들어가므로 형식을 검증한다.
+end_fid=$(api "/rest/api/3/field" \
+  | jqr -r '[.[]? | select((.name // "") | test("^(end date|종료일)$"; "i")) | .id][0] // ""' 2>/dev/null) || true
+[[ ${end_fid:-} =~ ^customfield_[0-9]+$ ]] || end_fid=""
+search=$(api "/rest/api/3/search/jql?jql=$enc&fields=summary,status,resolutiondate,duedate${end_fid:+,$end_fid}&maxResults=100")
 # 검증(issues 존재)+isLast 를 한 번의 jq 로: "OK\t<isLast>" 또는 "ERR\t<메시지>".
 IFS=$'\t' read -r sv_ok sv_extra < <(printf '%s' "$search" \
   | jqr -r 'if has("issues") then "OK\t\(.isLast // true)" else "ERR\t\((.errorMessages // [])|join("; "))" end' 2>/dev/null) || true
@@ -141,13 +150,19 @@ def adf2txt:
 | select($d >= $s and $d <= $e)
 | { date:$d, key:$key, summary:$summary, status:$status,
     started:.started, seconds:(.timeSpentSeconds // 0), time:(.timeSpent // ""),
-    comment:((.comment // "") | adf2txt | gsub("\n+";" / ") | gsub("^ */ *| */ *$";"")) }
+    comment:((.comment // "") | adf2txt | gsub("\n+";" / ") | gsub("^ */ *| */ *$";"")),
+    project:(($summary | capture("^\\s*\\[(?<p>[^\\]]+)\\]")? | .p) // "공통·경상"),
+    title:($summary | sub("^\\s*\\[[^\\]]+\\]\\s*";"")),
+    done:($done=="true"),
+    recurring:($summary | test("경상")),
+    resolved:(if ($resolved|test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")) then $resolved else null end),
+    end:(if ($end|test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$")) then $end else null end) }
 JQ
 
 # 이슈별 워크로그 조회 → 내 계정 + 기간 내 것만 정규화. 이슈마다 REST 1회라
 # 순차로는 이슈 수에 비례해 느리다 → 동시성 제한(PAR) 병렬 fetch 로 왕복 지연을 겹친다.
 # 출력 라인 섞임 방지를 위해 각 이슈 결과는 별도 임시파일에 받고 마지막에 합친다.
-fetch_one() {  # $1=key $2=summary $3=status ; JSONL → stdout
+fetch_one() {  # $1=key $2=summary $3=status $4=done $5=resolved $6=end ; JSONL → stdout
   # 이슈 키를 URL 경로에 넣기 전 검증 — today/jira_worklog.sh:268 과 동일 규칙.
   # 조용히 버리면 총합만 줄어든 그럴듯한 보고서가 나온다 — 틀린 숫자가 실패보다 나쁘므로 알린다.
   # (stdout 은 JSONL/요약 계약이라 반드시 stderr 로. %.32s 로 잘라 제어문자 도배를 막는다)
@@ -158,6 +173,7 @@ fetch_one() {  # $1=key $2=summary $3=status ; JSONL → stdout
   esac
   api "/rest/api/3/issue/$1/worklog" \
     | jqr -c --arg key "$1" --arg summary "$2" --arg status "$3" \
+           --arg done "$4" --arg resolved "$5" --arg end "$6" \
            --arg acct "$my_acct" --arg email "$my_email" --arg s "$START" --arg e "$END" \
            "$JQWL" 2>/dev/null || true
 }
@@ -166,14 +182,21 @@ case "$PAR" in ''|*[!0-9]*) PAR=8 ;; esac      # 비정수/빈값 → 8 (무제�
 [ "$PAR" -lt 1 ]  && PAR=8                       # 0/음수 → 8 (busy-loop spin 방지)
 [ "$PAR" -gt 32 ] && PAR=32                      # 상한 (커넥션 폭주 방지)
 n=0
-while IFS=$'\t' read -r k summary status; do
+# 빈 칸은 "-" 로 채운다 — IFS 가 탭이면 연속 탭이 하나로 뭉개져 뒤 컬럼이 당겨진다.
+while IFS=$'\t' read -r k summary status done resolved endd; do
   [ -n "$k" ] || continue
   n=$((n+1))
-  fetch_one "$k" "$summary" "$status" > "$TMPD/$n.jsonl" &
+  fetch_one "$k" "$summary" "$status" "$done" "$resolved" "$endd" > "$TMPD/$n.jsonl" &
   # 동시 실행 잡이 PAR 개에 도달하면 하나 끝날 때까지 대기(구버전 bash 는 전체 대기로 폴백).
   while [ "$(jobs -rp | wc -l)" -ge "$PAR" ]; do wait -n 2>/dev/null || wait; done
 done < <(printf '%s' "$search" \
-           | jqr -r '.issues[]? | [.key, (.fields.summary // ""), (.fields.status.name // "")] | @tsv')
+           | jqr -r --arg ef "$end_fid" 'def nz: if . == null or . == "" then "-" else tostring end;
+               .issues[]? | .fields as $f
+               | [.key, ($f.summary | nz), ($f.status.name | nz),
+                  (($f.status.statusCategory.key // "") == "done"),
+                  ($f.resolutiondate | nz | .[0:10]),
+                  ((if $ef != "" then $f[$ef] else null end) // $f.duedate | nz | .[0:10])]
+               | @tsv')
 wait
 cat "$TMPD"/*.jsonl > "$TMP" 2>/dev/null || true
 
@@ -203,19 +226,41 @@ echo "기간: ${START}($(wd "$START")) ~ ${END}($(wd "$END"))"
 #   @tsv 로 낸다 — 요약·상태에 탭이나 개행이 섞여도 필드·행이 밀리지 않는다.
 #   (직접 \t 보간이면 이슈 제목의 개행 하나로 위조 T 행을 만들어 총합을 덮어쓸 수 있다)
 #   T <총초> <이슈수> <근무일수> <워크로그수> · I <키> <초> <건> <상태> <요약> · D <일> <초> <건>
+#   P <프로젝트> <초> <이슈수> · J <키> <초> <건> <날짜태그> <제목>  (P 바로 뒤에 그 프로젝트의 J 들)
+#   날짜태그: 완료면 "완료 · M/D"(해결일), 아니면 "진행 · ~M/D"(End date, 없으면 기한). 날짜 없으면 날짜 생략.
+#     경상 이슈(recurring)는 마감이 연말이라 의미가 없으므로 "상시" 로 두고, J 바로 뒤에
+#     W <M/D> <코멘트> 행으로 워크로그마다의 날짜를 낸다(started 순).
 agg=$(jqr -r -s '
+  def md: split("-") | "\(.[1]|tonumber)/\(.[2]|tonumber)";
+  def dtag: if .recurring then "상시"
+            elif .done then "완료" + (if .resolved then " · " + (.resolved|md) else "" end)
+            else "진행" + (if .end then " · ~" + (.end|md) else "" end) end;
   ( ["T", (map(.seconds)|add // 0), ([.[].key]|unique|length), ([.[].date]|unique|length), length] | @tsv ),
+  ( group_by(.project)
+    | map({p:.[0].project, sec:(map(.seconds)|add),
+           js:(group_by(.key) | map({k:.[0].key, sec:(map(.seconds)|add), c:length,
+                                     t:(.[0]|dtag), ti:(.[0].title | if .=="" then "-" else . end),
+                                     ws:(if .[0].recurring
+                                         then sort_by(.started) | map({d:(.date|md), c:(.comment | if .=="" then "-" else . end)})
+                                         else [] end)})
+               | sort_by(-.sec))})
+    | sort_by((.p=="공통·경상"), -.sec)[]
+    | (["P", .p, .sec, (.js|length)] | @tsv),
+      (.js[] | (["J", .k, .sec, .c, .t, .ti] | @tsv), (.ws[] | ["W", .d, .c] | @tsv)) ),
   ( group_by(.key)  | map({k:.[0].key, st:.[0].status, su:.[0].summary, sec:(map(.seconds)|add), c:length})
     | sort_by(-.sec)[] | ["I", .k, .sec, .c, .st, .su] | @tsv ),
   ( group_by(.date) | map({d:.[0].date, sec:(map(.seconds)|add), c:length})
     | sort_by(.d)[]   | ["D", .d, .sec, .c] | @tsv )
 ' "$TMP" 2>/dev/null || true)
 
-issues=(); days=(); tot=0; ni=0; nd=0; nw=0
+issues=(); projs=(); days=(); tot=0; ni=0; nd=0; nw=0
 while IFS=$'\t' read -r tag a b c d e; do
   case "${tag:-}" in
     T) tot=$(num "$a"); ni=$(num "$b"); nd=$(num "$c"); nw=$(num "$d") ;;
     I) issues+=("$(printf '  %-18s %-8s (%s건)  %-12s %s' "$a" "$(sec2hm "$b")" "$c" "${d:-?}" "$e")") ;;
+    P) projs+=("$(printf '  %s — %s (이슈 %s건)' "$a" "$(sec2hm "$b")" "$c")") ;;
+    J) projs+=("$(printf '    %-18s %-8s (%s건)  %s  %s' "$a" "$(sec2hm "$b")" "$c" "$d" "$e")") ;;
+    W) projs+=("$(printf '        %-6s %s' "$a" "$b")") ;;
     D) days+=("$(printf '  %s(%s)  %-8s (%s건)' "$a" "$(wd "$a")" "$(sec2hm "$b")" "$c")") ;;
   esac
 done <<< "$agg"
@@ -225,6 +270,9 @@ if [ "${nw:-0}" -eq 0 ]; then
   exit 0
 fi
 echo "총합: $(sec2hm "$tot") · 이슈 ${ni}건 · 근무일 ${nd}일 · 워크로그 ${nw}건"
+echo
+echo "[프로젝트별] (시간 내림차순 · 공통·경상은 마지막 · 날짜: 완료=해결일, 진행=~End date, 상시(경상)=워크로그별)"
+printf '%s\n' "${projs[@]}"
 echo
 echo "[이슈별] (시간 내림차순)"
 printf '%s\n' "${issues[@]}"

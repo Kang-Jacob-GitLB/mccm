@@ -75,7 +75,7 @@ env 플러그인은 `mccm.json` 파일 하나에 환경 전체를 선언적으�
 | 스킬 | 설명 |
 |------|------|
 | [today](plugins/worklog/skills/today/) | 오늘(또는 지정일) 트랜스크립트 → `prep.sh` 동시 수집(활동·커밋·회의·Jira 후보·당일 워크로그) → 출근·퇴근 예정(또는 총 근무시간) 확인 → 시간대·프로젝트·커밋·prompt 주제 요약 + 30분 슬롯 타임라인 + 근무시간에 맞춘 Jira 워크로그 dry-run/apply(멀티라인 코멘트) |
-| [week](plugins/worklog/skills/week/) | 이번 주(또는 지난주/지정 범위) 내 Jira 워크로그 집계 → 이슈별/일자별 시간 + 코멘트 기반 작업 서술을 문서 도구용 주간보고 마크다운으로 출력 (읽기 전용) |
+| [week](plugins/worklog/skills/week/) | 이번 주(또는 지난주/지정 범위) 내 Jira 워크로그 집계 → 프로젝트별(이슈 제목 `[태그]`) 이슈 시간 + 완료일(해결일)·진행 마감(End date)·경상 이슈는 워크로그별 날짜 표기 + 코멘트 기반 작업 서술을 문서 도구에 붙여넣을 일반 텍스트 주간보고로 출력 (읽기 전용) |
 
 **사전 요구사항:** `today` 요약은 `jq`만 있으면 동작(트랜스크립트 직접 파싱). Jira 워크로그 입력(`today`)·주간 집계(`week`)는 [`jira` CLI](https://github.com/ankitpokhrel/jira-cli)(`jira init` + `JIRA_API_TOKEN` env) + `curl`·`base64`·`jq` 필요.
 
