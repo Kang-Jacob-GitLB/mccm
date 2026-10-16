@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "개인용 Claude Code 플러그인 마켓플레이스",
-    "version": "5.3.0"
+    "version": "5.4.0"
   },
   "plugins": [
     {
