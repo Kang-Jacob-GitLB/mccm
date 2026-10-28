@@ -1,0 +1,23 @@
+{
+  "_note": "jira-task-create 개인화 프로필 예시. ~/.config/mccm/jira-task.json 으로 복사한 뒤 값을 채운다. 참고 티켓을 주면 그 티켓 값이 이 프로필보다 우선한다. 토큰·서버 주소·로그인 이메일은 넣지 않는다(JIRA_API_TOKEN env / ~/.config/.jira/.config.yml 이 각각 담당). 실명·accountId 가 들어가므로 저장소에 커밋하지 않는다.",
+  "version": 1,
+  "project": "ABC",
+  "issuetype": "작업",
+  "epic_issuetype": "에픽",
+  "epic_projects": ["ABC", "DEF"],
+  "priority": "Medium",
+  "labels": ["label"],
+  "product_tags": ["PRODUCT1", "PRODUCT2"],
+  "reference_users": [
+    { "name": "Reviewer Name", "accountId": "000000:00000000-0000-0000-0000-000000000000" }
+  ],
+  "difficulty_option_id": "10000",
+  "_difficulty_note": "난이도 필드가 생성·편집 화면에 없으면 API 로 넣을 수 없다. 스킬은 createmeta/editmeta 에 있을 때만 이 값을 쓴다.",
+  "fields": {
+    "workspace": "customfield_10192",
+    "reference": "customfield_10091",
+    "start": "customfield_10015",
+    "end": "customfield_10082",
+    "difficulty": "customfield_10911"
+  }
+}

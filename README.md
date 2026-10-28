@@ -68,7 +68,7 @@ env 플러그인은 `mccm.json` 파일 하나에 환경 전체를 선언적으�
 | T2 `opus` | synthesizer | 다중 결과 합성·최종 판정 |
 | T2 `opus` | debugger | 증상→원인 동적 진단 (유일한 T2 쓰기 권한) |
 
-### worklog — 일일/주간 워크로그
+### worklog — 일일/주간 워크로그 · Jira 작업 티켓
 
 `today`는 Claude Code가 세션마다 남기는 트랜스크립트(`~/.claude/projects/<cwd-slug>/<session-id>.jsonl`)를 직접 파싱해 하루치 작업을 정리한다. 별도 hook 설치가 필요 없어 새 머신에서도 셋업 0으로 동작한다. 데이터 수집은 `prep.sh` 한 번 호출로 활동·커밋·Jira 후보·당일 워크로그를 **동시 수집**해 압축 리포트로 내며(트랜스크립트 스캔과 Jira 조회를 병렬 실행, 시각변환·경로 basename·프로젝트 해결을 스크립트가 처리해 빠르고 토큰을 아낀다), 하루를 30분 슬롯 타임라인으로 시각화한다. 선택적으로 `jira` CLI로 워크로그 입력 후보를 추정·dry-run 미리보기·실제 입력까지 반자동화한다(30분 반올림, 같은 날 기존 워크로그·점심시간 회피, 멀티라인 코멘트). 주간보고가 필요하면 `week`가 이번 주(또는 지난주) 내 Jira 워크로그를 집계해 문서 도구 등에 붙여넣을 주간보고 텍스트를 만든다(읽기 전용).
 
@@ -76,10 +76,11 @@ env 플러그인은 `mccm.json` 파일 하나에 환경 전체를 선언적으�
 |------|------|
 | [today](plugins/worklog/skills/today/) | 오늘(또는 지정일) 트랜스크립트 → `prep.sh` 동시 수집(활동·커밋·회의·Jira 후보·당일 워크로그) → 출근·퇴근 예정(또는 총 근무시간) 확인 → 시간대·프로젝트·커밋·prompt 주제 요약 + 30분 슬롯 타임라인 + 근무시간에 맞춘 Jira 워크로그 dry-run/apply(멀티라인 코멘트) · `11:30예약` 처럼 시각을 주면 그 시각에 실행하도록 예약 |
 | [week](plugins/worklog/skills/week/) | 이번 주(또는 지난주/지정 범위) 내 Jira 워크로그 집계 → 프로젝트별(이슈 제목 `[태그]`) 이슈 시간 + 완료일(해결일)·진행 마감(End date)·경상 이슈는 워크로그별 날짜 표기 + 코멘트 기반 작업 서술을 문서 도구에 붙여넣을 일반 텍스트 주간보고로 출력 (읽기 전용) |
+| [jira-task-create](plugins/worklog/skills/jira-task-create/) | 세션 작업(커밋·PR·산출물) → 상위 에픽 아래 Jira "작업" 티켓 초안. 에픽이 없으면 최근 담당 티켓의 상위 에픽·프로필 프로젝트 미완료 에픽에서 후보 3개 추천, 참고 티켓 필드 구성 승계, createmeta 사전 확인·중복 확인·영업일 원래 추정치 → **승인 후에만** REST 생성 → 필드 검증 표 |
 
-**사전 요구사항:** `today` 요약은 `jq`만 있으면 동작(트랜스크립트 직접 파싱). Jira 워크로그 입력(`today`)·주간 집계(`week`)는 [`jira` CLI](https://github.com/ankitpokhrel/jira-cli)(`jira init` + `JIRA_API_TOKEN` env) + `curl`·`base64`·`jq` 필요.
+**사전 요구사항:** `today` 요약은 `jq`만 있으면 동작(트랜스크립트 직접 파싱). Jira 워크로그 입력(`today`)·주간 집계(`week`)·티켓 생성(`jira-task-create`)은 [`jira` CLI](https://github.com/ankitpokhrel/jira-cli)(`jira init` + `JIRA_API_TOKEN` env) + `curl`·`base64`·`jq` 필요.
 
-**개인화(선택):** 표시 이름·보고서 문체·이슈키 예시·주간보고 템플릿 등을 자신에게 맞추려면 `plugins/worklog/worklog.example.json`을 `~/.config/mccm/worklog.json`으로 복사해 값을 채운다. 설정이 없어도 `today`·`week`는 SKILL.md 기본 규칙 그대로 동작한다 — 개인화는 선택이지 필수가 아니다. 자세한 위치·검증 방법은 아래 「워크로그 개인화」 절 참고.
+**개인화(선택):** 표시 이름·보고서 문체·이슈키 예시·주간보고 템플릿 등을 자신에게 맞추려면 `plugins/worklog/worklog.example.json`을 `~/.config/mccm/worklog.json`으로 복사해 값을 채운다. 설정이 없어도 `today`·`week`는 SKILL.md 기본 규칙 그대로 동작한다 — 개인화는 선택이지 필수가 아니다. 자세한 위치·검증 방법은 아래 「워크로그 개인화」 절 참고. `jira-task-create`는 별도 프로필 `~/.config/mccm/jira-task.json`(예시 `plugins/worklog/jira-task.example.json`)에서 기본 프로젝트·에픽 후보 프로젝트·참조자·레이블을 읽는다 — 참고 티켓을 주면 그 값이 우선하고, 프로필이 없어도 동작한다.
 
 ## 설치 방법
 
@@ -196,16 +197,20 @@ mccm/
         ├── .claude-plugin/
         │   └── plugin.json
         ├── worklog.example.json     ← 개인화 프로필 예시(중립값, 실값은 ~/.config/mccm/worklog.json)
+        ├── jira-task.example.json   ← jira-task-create 프로필 예시(실값은 ~/.config/mccm/jira-task.json)
         └── skills/
             ├── today/
             │   ├── SKILL.md
             │   ├── _tz.sh
-            │   ├── _jira.sh
+            │   ├── _jira.sh         ← jira config·REST 공통 헬퍼(jira-task-create 도 source)
             │   ├── _profile.sh      ← 개인화 프로필 로더(+ --check 진단 CLI)
             │   ├── collect.sh
             │   ├── prep.sh
             │   ├── timeline.sh
             │   └── jira_worklog.sh
+            ├── jira-task-create/
+            │   ├── SKILL.md
+            │   └── jira_task.sh     ← 조회·에픽 추천·createmeta·생성(--confirm)·검증
             └── week/
                 ├── SKILL.md
                 ├── _tz.sh
