@@ -67,7 +67,8 @@ F_REF="$(pf '.fields.reference')";  F_REF="${F_REF:-customfield_10091}"
 F_START="$(pf '.fields.start')";    F_START="${F_START:-customfield_10015}"
 F_END="$(pf '.fields.end')";        F_END="${F_END:-customfield_10082}"
 F_LPE="$(pf '.fields.difficulty')"; F_LPE="${F_LPE:-customfield_10911}"
-EPIC_TYPE="$(pf '.epic_issuetype')"; EPIC_TYPE="${EPIC_TYPE:-에픽}"
+# JQL 의 issuetype 은 영문 기본 이름(Epic)으로만 매칭된다 — 표시 이름("에픽")은 0건이 된다(실측).
+EPIC_TYPE="$(pf '.epic_issuetype')"; EPIC_TYPE="${EPIC_TYPE:-Epic}"
 
 # ── REST ─────────────────────────────────────────────────────────────────
 # jt_req METHOD PATH OUTFILE [DATAFILE] → stdout 에 HTTP 코드(타임아웃·연결실패는 000). 본문은 OUTFILE.
@@ -172,17 +173,17 @@ case "$cmd" in
     # JQL 문자열 리터럴에 들어가므로 따옴표·역슬래시·제어문자를 거부한다.
     [[ "$EPIC_TYPE" =~ ^[^\"\\[:cntrl:]]+$ ]] || die "프로필 epic_issuetype 에 따옴표·역슬래시·제어문자를 쓸 수 없다"
     printf 'key\tsource\tuses\tstatus\tduedate\tsummary\n'
-    # (a) 최근 내가 담당한 티켓의 parent 에픽 — 사용 횟수 집계
+    # (a) 최근 내가 담당한 티켓의 parent 에픽 — 사용 횟수 집계 (응답의 이름은 표시 이름이라 hierarchyLevel 로 판정)
     jt_search "assignee = currentUser() AND updated >= -${days}d AND parent is not EMPTY ORDER BY updated DESC" \
               '["parent"]' 100 \
-      | jq -r --arg et "$EPIC_TYPE" '
-          [.issues[]?.fields.parent | select(. != null)
-           | select(.fields.issuetype.name == $et or .fields.issuetype.hierarchyLevel == 1)]
+      | jq -r '
+          [.issues[]?.fields.parent | select(. != null) | select(.fields.issuetype.hierarchyLevel == 1)]
           | group_by(.key) | map({key: .[0].key, n: length, st: .[0].fields.status.name,
                                  cat: .[0].fields.status.statusCategory.key, s: .[0].fields.summary})
           | sort_by(-.n)[] | select(.cat != "done")
-          | [.key, "recent", (.n|tostring), .st, "", .s] | @tsv' | tr -d '\r'
-    # (b) 프로필 프로젝트의 미완료 에픽
+          | [.key, "recent", (.n|tostring), .st, "", .s] | @tsv' | tr -d '\r' > "$TMP/recent.tsv"
+    cat "$TMP/recent.tsv"
+    # (b) 프로필 프로젝트의 미완료 에픽 — (a) 에 이미 나온 키는 빼서 중복 행을 막는다
     eps=()
     while IFS= read -r p; do [ -n "$p" ] && { need_proj "$p"; eps+=("$p"); }; done < <(pf '.epic_projects[]?')
     if [ ${#eps[@]} -gt 0 ]; then
@@ -190,7 +191,8 @@ case "$cmd" in
       jt_search "project in ($plist) AND issuetype = \"$EPIC_TYPE\" AND statusCategory != Done ORDER BY updated DESC" \
                 '["summary","status","duedate"]' 50 \
         | jq -r '.issues[]? | [.key, "open", "0", .fields.status.name, (.fields.duedate // ""), .fields.summary] | @tsv' \
-        | tr -d '\r'
+        | tr -d '\r' | awk -F'\t' -v f="$TMP/recent.tsv" \
+            'BEGIN { while ((getline l < f) > 0) { split(l, a, "\t"); seen[a[1]] = 1 } } !($1 in seen)'
     fi ;;
 
   children)
