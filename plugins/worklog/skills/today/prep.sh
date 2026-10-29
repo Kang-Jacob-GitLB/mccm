@@ -16,7 +16,7 @@
 #     -h|--help
 #
 # 출력 섹션: PROFILE / ISSUE(옵션) / CALENDAR(회의) / ACTIVITY(prompts) / COMMITS /
-#            JIRA_CANDIDATES / WORKLOGS_TODAY.
+#            JIRA_CANDIDATES / WORKLOGS_TODAY / VAULT(자리표시 — 활동 cwd 만 캐시, 매핑은 vault.sh section).
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/_tz.sh"
@@ -186,3 +186,14 @@ if [ -s "$TMP/wl.tsv" ]; then
 else
   echo "(없음/조회불가 — 자격 없거나 당일 워크로그 없음)"
 fi
+
+# VAULT: 볼트 매핑 조회는 저장소마다 git 을 불러 수~십수 초 걸린다 — 요약·dry-run 에선 쓰지
+# 않으므로 여기서 돌리지 않고, 그날 활동 cwd 목록만 캐시해 둔다. 절차 6 의
+# `vault.sh section DATE` 가 이 캐시를 읽는다(전체 경로를 컨텍스트에 싣지 않으려는 목적도 있다).
+VCACHE="${XDG_CACHE_HOME:-${HOME}/.cache}/mccm"
+if mkdir -p "$VCACHE" 2>/dev/null; then
+  jq -r 'select(.event=="prompt" or .event=="commit") | .cwd // empty' "$TMP/act.jsonl" 2>/dev/null \
+    | tr -d '\r' | sort -u > "$VCACHE/today-cwds-$DATE.txt" 2>/dev/null || true
+fi
+printf '\n## VAULT (PMO Vault daily-log — 절차 6 에서 `vault.sh section %s` 로 조회)\n' "$DATE"
+printf '(활동 저장소 경로 %s개 캐시됨)\n' "$(wc -l < "$VCACHE/today-cwds-$DATE.txt" 2>/dev/null | tr -d ' ' || echo 0)"
