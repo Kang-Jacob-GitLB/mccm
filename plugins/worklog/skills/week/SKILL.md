@@ -39,7 +39,7 @@ description: 한 주(기본 이번 주 월~오늘, KST) 동안 내가 Jira 에 �
 ```bash
 # 이 스킬 디렉토리 자동 탐색 — 플러그인 캐시/로컬 스킬 어디에 설치됐든 동작.
 SKILL_DIR="$(dirname "$(find "$HOME/.claude/plugins/cache" "$HOME/.claude/skills" \
-  -name jira_week.sh -path '*/skills/week/jira_week.sh' 2>/dev/null | sort -r | head -1)")"
+  -name jira_week.sh -path '*/skills/week/jira_week.sh' 2>/dev/null | sort -rV | head -1)")"   # -V: 2.10.0 이 2.9.0 보다 앞서게
 
 "$SKILL_DIR/jira_week.sh"                 # 이번 주 (월~오늘)
 # "$SKILL_DIR/jira_week.sh" --last-week   # 지난 주 (월~일)
