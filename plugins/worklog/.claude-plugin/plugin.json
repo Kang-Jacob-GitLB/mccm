@@ -1,7 +1,7 @@
 {
   "name": "worklog",
-  "version": "2.10.0",
-  "description": "Claude Code 트랜스크립트·Jira 워크로그 기반 워크로그 도구. today: prep.sh 로 활동·커밋·회의(gws)·Jira 후보·당일 워크로그를 동시 수집(병렬·압축) → 출근·퇴근 예정(또는 총 근무시간) 확인 → 30분 슬롯 타임라인 + jira CLI 워크로그 입력(dry-run/추정매핑/근무시간 맞춤 배분/30분 반올림/겹침·점심·회의 회피/멀티라인 코멘트, 맞는 티켓 없으면 새 티켓 생성 추천) + 워크로그 반영 시 PMO Vault 에 daily-log 기록(pmo-vault session-cleanup 형식을 매번 읽어 변경 감지, 승인 후 기록·커밋·푸시). week: 이번 주 Jira 워크로그를 프로젝트별로 집계(완료일·진행 End date 표기) → 주간보고 텍스트(읽기 전용). jira-task-create: 세션 작업을 요약해 상위 에픽(미지정 시 후보 3개 추천) 아래 Jira 작업 티켓 초안 → createmeta·중복 확인 → 승인 후에만 REST 생성 → 필드 검증. hook 불필요.",
+  "version": "2.11.0",
+  "description": "Claude Code 트랜스크립트·Jira 워크로그 기반 워크로그 도구. today: prep.sh 로 활동·커밋·회의(gws)·Jira 후보·당일 워크로그를 동시 수집(병렬·압축) → 출근·퇴근 예정(또는 총 근무시간) 확인 → 30분 슬롯 타임라인 + jira CLI 워크로그 입력(dry-run/추정매핑/근무시간 맞춤 배분/30분 반올림/겹침·점심·회의 회피/멀티라인 코멘트, 맞는 티켓 없으면 새 티켓 생성 추천) + 워크로그 반영 시 PMO Vault 에 daily-log 기록(pmo-vault session-cleanup 형식을 매번 읽어 변경 감지, 승인 후 기록·커밋·푸시). week: 이번 주 Jira 워크로그를 프로젝트별로 집계(완료일·진행 End date 표기) → 주간보고 텍스트(읽기 전용). jira-task-create: 세션 작업을 요약해 상위 에픽(미지정 시 후보 3개 추천) 아래 Jira 작업 티켓 초안 → createmeta·중복 확인 → 승인 후에만 REST 생성 → 필드 검증. jira-epic-create: 참고 에픽의 필드 구성(워크 스페이스·참조자·제목 형식)을 따라 새 에픽 초안 → createmeta·중복 확인 → 승인 후에만 REST 생성(parent·에픽 유형 사전 검사) → 필드 검증, 하위 작업은 jira-task-create 로 이어 생성. hook 불필요.",
   "author": {
     "name": "Kang-Jacob-GitLB",
     "url": "https://github.com/Kang-Jacob-GitLB"
@@ -17,6 +17,7 @@
     "weekly-report",
     "jira-task",
     "epic",
+    "jira-epic",
     "pmo-vault",
     "daily-log",
     "productivity"

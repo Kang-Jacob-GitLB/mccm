@@ -77,8 +77,9 @@ env 플러그인은 `mccm.json` 파일 하나에 환경 전체를 선언적으�
 | [today](plugins/worklog/skills/today/) | 오늘(또는 지정일) 트랜스크립트 → `prep.sh` 동시 수집(활동·커밋·회의·Jira 후보·당일 워크로그) → 출근·퇴근 예정(또는 총 근무시간) 확인 → 시간대·프로젝트·커밋·prompt 주제 요약 + 30분 슬롯 타임라인 + 근무시간에 맞춘 Jira 워크로그 dry-run/apply(멀티라인 코멘트) · 맞는 활성 티켓이 없는 작업은 `jira-task-create`로 새 티켓 생성 추천 · 워크로그 반영 시 PMO Vault에 그날 작업 context(daily-log)를 pmo-vault `session-cleanup`("정리해") 형식으로 기록(형식은 설치된 스킬에서 매번 읽고 변경 시 diff 확인, 기록·커밋·푸시 각각 승인) · `11:30예약` 처럼 시각을 주면 그 시각에 실행하도록 예약 |
 | [week](plugins/worklog/skills/week/) | 이번 주(또는 지난주/지정 범위) 내 Jira 워크로그 집계 → 프로젝트별(이슈 제목 `[태그]`) 이슈 시간 + 완료일(해결일)·진행 마감(End date)·경상 이슈는 워크로그별 날짜 표기 + 코멘트 기반 작업 서술을 문서 도구에 붙여넣을 일반 텍스트 주간보고로 출력 (읽기 전용) |
 | [jira-task-create](plugins/worklog/skills/jira-task-create/) | 세션 작업(커밋·PR·산출물) → 상위 에픽 아래 Jira "작업" 티켓 초안. 에픽이 없으면 최근 담당 티켓의 상위 에픽·프로필 프로젝트 미완료 에픽에서 후보 3개 추천, 참고 티켓 필드 구성 승계, createmeta 사전 확인·중복 확인·영업일 원래 추정치 → **승인 후에만** REST 생성 → 필드 검증 표 |
+| [jira-epic-create](plugins/worklog/skills/jira-epic-create/) | 참고 에픽의 필드 구성(프로젝트·워크 스페이스·참조자·우선순위·레이블·제목 형식) → 새 Jira 에픽 초안. createmeta 사전 확인·같은 주제 에픽 중복 확인·영업일 원래 추정치 → **승인 후에만** REST 생성(`create-epic`: parent 포함·에픽 아닌 유형은 POST 전 거부) → 필드 검증 표. 그 아래 작업은 `jira-task-create`로 이어 생성 |
 
-**사전 요구사항:** `today` 요약은 `jq`만 있으면 동작(트랜스크립트 직접 파싱). Jira 워크로그 입력(`today`)·주간 집계(`week`)·티켓 생성(`jira-task-create`)은 [`jira` CLI](https://github.com/ankitpokhrel/jira-cli)(`jira init` + `JIRA_API_TOKEN` env) + `curl`·`base64`·`jq` 필요.
+**사전 요구사항:** `today` 요약은 `jq`만 있으면 동작(트랜스크립트 직접 파싱). Jira 워크로그 입력(`today`)·주간 집계(`week`)·티켓 생성(`jira-task-create`·`jira-epic-create`)은 [`jira` CLI](https://github.com/ankitpokhrel/jira-cli)(`jira init` + `JIRA_API_TOKEN` env) + `curl`·`base64`·`jq` 필요.
 
 **PMO Vault 기록(선택):** 회사 PMO Vault를 로컬에 체크아웃해 두었다면 `today`가 워크로그 반영 시 그날 작업한 저장소의 daily-log를 pmo-vault `session-cleanup`("정리해") 형식으로 남긴다. 볼트 경로는 처음 한 번 `bash plugins/worklog/skills/today/vault.sh setroot --confirm <볼트 경로>`로 저장한다(`~/.config/mccm/vault-root`, `MCCM_VAULT_ROOT` 환경변수가 있으면 우선). 볼트 경로·형식 승인 기준(`~/.config/mccm/vault-spec/`)·저장소→볼트 프로젝트 매핑 기억(`~/.config/mccm/vault-map.tsv`)은 모두 PC 로컬 상태라 `worklog.json`·gist와 무관하다. 볼트의 `context/project.md` `source_repos`에 실제 저장소 URL이 등록돼 있으면 자동 매핑되고, 없으면 처음 한 번 어느 프로젝트에 기록할지 묻는다.
 
@@ -211,9 +212,11 @@ mccm/
             │   ├── timeline.sh
             │   ├── jira_worklog.sh
             │   └── vault.sh         ← PMO Vault daily-log 기록(session-cleanup 형식 읽기·변경 감지·--confirm 쓰기)
+            ├── jira-epic-create/
+            │   └── SKILL.md         ← 스크립트는 ../jira-task-create/jira_task.sh 공용(epictype·create-epic)
             ├── jira-task-create/
             │   ├── SKILL.md
-            │   └── jira_task.sh     ← 조회·에픽 추천·createmeta·생성(--confirm)·검증
+            │   └── jira_task.sh     ← 조회·에픽 추천·createmeta·생성(--confirm)·에픽 생성(create-epic)·검증
             └── week/
                 ├── SKILL.md
                 ├── _tz.sh

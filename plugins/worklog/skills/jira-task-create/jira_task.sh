@@ -11,6 +11,8 @@
 #   createmeta PROJ [TYPE]     생성 화면 필드 TSV (fieldId·필수·이름) — 기본 TYPE=작업
 #   bizdays START END          양끝 포함 영업일 수(주말만 제외)
 #   create --confirm FILE      ⚠ 외부 쓰기. 승인받은 payload JSON 을 POST /rest/api/3/issue
+#   epictype PROJ              프로젝트의 에픽 이슈 유형 "name<TAB>id" (jira-epic-create 용)
+#   create-epic --confirm FILE ⚠ 외부 쓰기. parent 없는 에픽 payload 를 POST (유형이 에픽인지 사전 검사)
 #   editmeta KEY               편집 화면 필드 TSV — 생성 화면에 없는 필드를 생성 후 넣을 수 있는지 확인
 #   update --confirm KEY FILE  ⚠ 외부 쓰기. {"fields":{...}} 를 PUT (생성 화면에 없던 필드 보충)
 #   transitions KEY           가능한 상태 전환 목록 TSV
@@ -124,6 +126,16 @@ issue_summary_jq() {
      workspace: (.fields[$ws] | if . then {id, key, name} else null end),
      reference: [.fields[$ref][]? | {name: .displayName, accountId}],
      difficulty: (.fields[$lpe] | if . then {id, value} else null end)}'
+}
+
+# 프로젝트의 에픽 이슈 유형 → "name\tid". hierarchyLevel 1 로 판정하고, 응답에 그 값이 없으면
+# 프로필 epic_issuetype·"에픽" 이름으로 대신 찾는다(표시 이름이 인스턴스 언어를 따른다).
+epic_type_of() {
+  jt_get "/rest/api/3/issue/createmeta/$1/issuetypes?maxResults=50" \
+    | jq -r --arg n "$EPIC_TYPE" '(.issueTypes // .values // []) as $t
+        | ([$t[] | select(.hierarchyLevel == 1)] + [$t[] | select(.name == $n or .name == "에픽")])
+        | first // empty | [.name, .id] | @tsv' | tr -d '\r' | grep . \
+    || { echo "ERROR: $1 에서 에픽 이슈 유형을 찾지 못했다" >&2; return 1; }
 }
 
 cmd="${1:-}"; [ $# -gt 0 ] && shift
@@ -240,6 +252,40 @@ case "$cmd" in
       2*)  k="$(jq -r '.key' "$TMP/c" | tr -d '\r')"
            echo "CREATED $k"; echo "URL $JIRA_SERVER/browse/$k" ;;
       000) echo "TIMEOUT_OR_NETWORK — 생성됐을 수 있다. 재POST 전에 'children EPIC' 으로 먼저 확인할 것"; exit 2 ;;
+      *)   jq -c '{errorMessages, errors}' "$TMP/c" 2>/dev/null | tr -d '\r' || tr -d '\r' < "$TMP/c"; exit 1 ;;
+    esac ;;
+
+  epictype)
+    [ $# -eq 1 ] || die "사용: epictype PROJ"; need_proj "$1"
+    epic_type_of "$1" ;;
+
+  create-epic)
+    [ "${1:-}" = "--confirm" ] || die "외부 쓰기다 — 사용자 승인 후 'create-epic --confirm FILE' 로만 호출한다"
+    f="${2:-}"; [ -f "$f" ] || die "payload 파일이 없다: $f"
+    jq -e . "$f" >/dev/null 2>&1 || die "payload 가 유효한 JSON 이 아니다"
+    jq -e '.fields.reporter' "$f" >/dev/null 2>&1 && die "payload 에 reporter 가 있다 — 화면에 없는 필드라 생성이 실패하니 빼라"
+    jq -e '.fields.parent' "$f" >/dev/null 2>&1 && die "에픽 payload 에 parent 가 있다 — 작업 티켓은 'create' 로 만든다"
+    jq -e '.fields.timetracking.originalEstimate | strings | length > 0' "$f" >/dev/null 2>&1 \
+      || die "payload 에 timetracking.originalEstimate 가 없다 — 필수 필드다"
+    jq -e '.fields.project.key and .fields.issuetype.id and .fields.summary' "$f" >/dev/null 2>&1 \
+      || die "payload 에 project.key·issuetype.id·summary 중 빠진 것이 있다"
+    # name·id 를 섞어 넣으면 검사한 값과 Jira 가 쓰는 값이 갈릴 수 있어 키 하나만 받는다.
+    jq -e '(.fields.issuetype | keys) == ["id"] and (.fields.project | keys) == ["key"]' "$f" >/dev/null 2>&1 \
+      || die "issuetype 은 {\"id\"} 만, project 는 {\"key\"} 만 넣는다"
+    proj="$(jq -r '.fields.project.key' "$f" | tr -d '\r')"; need_proj "$proj"
+    tid="$(jq -r '.fields.issuetype.id | tostring' "$f" | tr -d '\r')"
+    [[ "$tid" =~ ^[0-9]+$ ]] || die "issuetype.id 는 숫자 문자열이어야 한다: '$tid'"
+    # 작업 티켓을 parent 없이 만드는 우회로로 쓰이지 않게, 유형이 그 프로젝트의 에픽인지 POST 전에 확인한다.
+    # pipefail 이 없어 파이프로 받으면 조회 실패가 묻히므로 결과를 먼저 받고 자른다.
+    et="$(epic_type_of "$proj")" || exit 1
+    eid="${et##*$'\t'}"; [[ "$eid" =~ ^[0-9]+$ ]] || die "$proj 의 에픽 유형 id 를 얻지 못했다"
+    [ "$tid" = "$eid" ] || die "issuetype.id '$tid' 는 $proj 의 에픽 유형($eid)이 아니다"
+    code="$(jt_req POST /rest/api/3/issue "$TMP/c" "$f")"
+    echo "HTTP $code"
+    case "$code" in
+      2*)  k="$(jq -r '.key' "$TMP/c" | tr -d '\r')"
+           echo "CREATED $k"; echo "URL $JIRA_SERVER/browse/$k" ;;
+      000) echo "TIMEOUT_OR_NETWORK — 생성됐을 수 있다. 재POST 전에 'epics' 로 같은 제목의 에픽이 생겼는지 먼저 확인할 것"; exit 2 ;;
       *)   jq -c '{errorMessages, errors}' "$TMP/c" 2>/dev/null | tr -d '\r' || tr -d '\r' < "$TMP/c"; exit 1 ;;
     esac ;;
 

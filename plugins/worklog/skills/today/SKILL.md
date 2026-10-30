@@ -17,7 +17,7 @@ Claude Code 가 **세션마다 자동으로 남기는 트랜스크립트**(`~/.c
 스킬 디렉토리 자동 탐색(플러그인 캐시/로컬 어디든):
 ```bash
 SKILL_DIR="$(dirname "$(find "$HOME/.claude/plugins/cache" "$HOME/.claude/skills" \
-  -name prep.sh -path '*/skills/today/prep.sh' 2>/dev/null | sort -r | head -1)")"
+  -name prep.sh -path '*/skills/today/prep.sh' 2>/dev/null | sort -rV | head -1)")"   # -V: 2.10.0 이 2.9.0 보다 앞서게
 ```
 
 ## 스크립트 도구
