@@ -1,0 +1,131 @@
+/* ============================================================================
+   dev:deck house layer — litbig-deck 위에 덧씌우는 사내 스타일
+   deck.html 의 upstream <style> 블록 "뒤"에 <link> 한다. 앞에 두면 upstream 의
+   .eyebrow 가 같은 특이도로 이겨서 제목 교체가 먹지 않는다.
+   수치는 사용자가 확정한 팀 공유 덱(PDF)에서 역추출(1920×1080 기준).
+   ========================================================================== */
+
+/* 아티팩트 미리보기용 한글 폴백. 아티팩트 CSP 는 jsdelivr 스타일시트(Pretendard)를 막고
+   fonts.googleapis.com 만 허용한다. PDF 렌더(file://)에서는 Pretendard 가 먼저 잡힌다. */
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap");
+
+:root{
+  --font-display:"Pretendard Variable","Pretendard","Noto Sans KR",-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --font-sans:   "Pretendard Variable","Pretendard","Noto Sans KR",-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --font-mono:   "Pretendard Variable","Pretendard","Noto Sans KR",-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+
+  --hs-radius:24px;
+  --hs-shadow:0 2px 6px rgba(30,42,68,.06), 0 14px 36px rgba(30,42,68,.10);
+  --hs-shadow-lift:0 4px 10px rgba(30,42,68,.08), 0 22px 48px rgba(30,42,68,.14);
+  --hs-tile-shadow:0 8px 18px rgba(30,42,68,.22);
+  --hs-tile-shadow-on:0 8px 18px rgba(255,106,19,.30);
+  --hs-soft:#EEF1F6;          /* 칩·존 배경(네이비 틴트) */
+  --hs-warn-bg:#FFF1E8;       /* 강조 칩 배경 — 면적이 작을 때만 */
+  --hs-warn-fg:#C44A00;       /* 오렌지 위 글자 대비용 진한 오렌지 */
+}
+
+/* ── 1. 제목 교체: eyebrow = 메시지 문장(작게), h2 = 짧은 라벨(크게) ───────── */
+.eyebrow{ font:600 22px/1.3 var(--font-sans); letter-spacing:0; text-transform:none; }
+section.slide .hd h2{ font:700 56px/64px var(--font-display); letter-spacing:-.02em;
+  color:var(--litbig-ink); margin:18px 0 0; }
+section.slide.dark .hd h2{ color:#fff; }
+.hd h2 .en{ color:var(--litbig-orange); }
+
+/* house 콘텐츠 슬라이드: 제목을 위로 붙이고 그림 영역을 넓힌다 */
+.hs .stage-pad{ padding:72px 110px 128px; }
+.hs .body{ flex:1; min-height:0; display:flex; flex-direction:column; justify-content:center;
+  gap:40px; margin-top:36px; }
+
+/* ── 2. 표지(네이비 고정): h1 112px, 오른쪽에 흐름 그림 ───────────────────── */
+.s-cover h1{ font-size:112px; line-height:116px; }
+.s-cover .lede{ max-width:900px; font-size:29px; line-height:44px; }
+/* top:50%+translateY 금지 — 인쇄 분할은 변환 전 박스로 계산돼 PDF 에서 아래 노드가 다음
+   조각으로 밀린다. 위아래를 잡고 flex 로 가운데 정렬한다. */
+.s-cover .cover-visual{ position:absolute; right:150px; top:0; bottom:0; width:440px;
+  display:flex; flex-direction:column; justify-content:center; gap:40px; }
+.s-cover .cv-node + .cv-node::before{ content:""; position:absolute; left:50%; top:-41px; height:40px;
+  width:2px; background:rgba(255,255,255,.14); }   /* 노드 사이 연결선(gap 40px 을 채운다) */
+.s-cover .cv-node{ position:relative; display:flex; align-items:center; gap:22px; padding:22px 26px;
+  border-radius:20px; background:#26334F; border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 12px 30px rgba(0,0,0,.25); }
+.s-cover .cv-node.on{ background:#2F2C33; border-color:rgba(255,106,19,.55); }
+.s-cover .cv-node b{ display:block; font:700 28px/1.2 var(--font-sans); color:#fff; }
+.s-cover .cv-node small{ display:block; font:400 18px/1.3 var(--font-sans); color:rgba(245,241,238,.7); margin-top:6px; }
+.s-cover .cv-node .tile{ background:rgba(255,255,255,.10); box-shadow:none; }
+.s-cover .cv-node.on .tile{ background:var(--litbig-orange); }
+
+/* ── 3. 그림자 카드 ─────────────────────────────────────────────────────── */
+.card{ position:relative; background:#fff; border-radius:var(--hs-radius); box-shadow:var(--hs-shadow);
+  padding:44px 40px; display:flex; flex-direction:column; gap:12px; min-width:0; }
+.card.on{ box-shadow:inset 0 0 0 2px var(--litbig-orange), var(--hs-shadow-lift); }
+.card.navy{ background:var(--litbig-ink); color:#fff; }
+.card.navy h3{ color:#fff; } .card.navy p{ color:rgba(245,241,238,.72); }
+.card.navy .tile{ background:rgba(255,255,255,.10); box-shadow:none; }
+.card.sm{ padding:32px 32px; border-radius:20px; }
+.card .row{ display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.card .kicker{ font:700 16px/1 var(--font-sans); letter-spacing:.3em; text-transform:uppercase;
+  color:var(--fg3); margin-top:18px; }
+.card.navy .kicker{ color:var(--litbig-orange); }
+.card h3{ font:700 46px/52px var(--font-display); letter-spacing:-.01em; color:var(--litbig-ink); margin:0; }
+.card.sm h3{ font-size:32px; line-height:40px; }
+.card p{ font:400 23px/34px var(--font-sans); color:var(--fg2); margin:0; }
+.card.sm p{ font-size:19px; line-height:28px; }
+.card .meta{ font:600 22px/1 var(--font-sans); color:var(--fg3); }
+.card .foot{ margin-top:auto; padding-top:22px; border-top:1px solid var(--border);
+  display:flex; align-items:center; gap:12px; font:600 19px/1.2 var(--font-sans); color:var(--litbig-ink); }
+.card .foot svg{ width:24px; height:24px; color:var(--fg3); flex-shrink:0; }
+.card.on .foot, .card.on .foot svg{ color:var(--hs-warn-fg); }
+
+/* 아이콘 타일 — 그림 위주의 주인공. 아이콘은 인라인 SVG(라인, stroke 2) */
+.tile{ width:80px; height:80px; flex-shrink:0; border-radius:20px; background:var(--litbig-ink); color:#fff;
+  display:grid; place-items:center; box-shadow:var(--hs-tile-shadow); }
+.tile.on{ background:var(--litbig-orange); box-shadow:var(--hs-tile-shadow-on); }
+.tile.sm{ width:56px; height:56px; border-radius:14px; }
+.tile.ghost{ background:var(--hs-soft); color:var(--litbig-ink); box-shadow:none; }
+.tile svg{ width:40px; height:40px; }
+.tile.sm svg{ width:28px; height:28px; }
+svg.i, .tile svg, .chip svg, .foot svg{ fill:none; stroke:currentColor; stroke-width:2;
+  stroke-linecap:round; stroke-linejoin:round; }
+
+/* ── 4. 배치 도구 ───────────────────────────────────────────────────────── */
+.grid{ display:grid; gap:32px; align-items:stretch; }
+.g2{ grid-template-columns:repeat(2,1fr); } .g3{ grid-template-columns:repeat(3,1fr); }
+.g4{ grid-template-columns:repeat(4,1fr); } .g5{ grid-template-columns:repeat(5,1fr); }
+/* 카드 사이 화살표 흐름: <div class="flow"> card · <div class="arr">→svg</div> · card … */
+.flow{ display:flex; align-items:stretch; gap:20px; }
+.flow > .card{ flex:1; }
+.flow > .arr{ flex:0 0 40px; display:grid; place-items:center; color:var(--fg-muted); }
+.flow > .arr svg{ width:36px; height:36px; }
+
+.chips{ display:flex; flex-wrap:wrap; gap:16px; justify-content:center; }
+.chip{ display:inline-flex; align-items:center; gap:10px; padding:12px 22px; border-radius:999px;
+  background:var(--hs-soft); font:600 19px/1 var(--font-sans); color:var(--litbig-ink); }
+.chip svg{ width:22px; height:22px; }
+.chip.on{ background:var(--hs-warn-bg); color:var(--hs-warn-fg); }
+.tags{ display:flex; flex-wrap:wrap; gap:10px; }
+.tag{ font:500 18px/1 var(--font-sans); padding:10px 14px; border-radius:8px; background:var(--neutral-50);
+  border:1px solid var(--border); color:var(--litbig-ink); }
+
+/* 숫자 타일: 큰 숫자 하나 + 라벨 */
+.stat{ display:flex; align-items:center; gap:36px; padding:28px 40px; }
+.stat .num{ font:700 46px/1 var(--font-display); color:var(--litbig-ink); font-variant-numeric:tabular-nums; min-width:150px; }
+.stat .lbl{ font:600 19px/1.3 var(--font-sans); color:var(--fg2); }
+.stat .lbl small{ display:block; font:400 15px/1.3 var(--font-sans); color:var(--fg3); margin-top:6px; }
+
+/* 실제 화면 캡처 카드 */
+.shot{ padding:0; overflow:hidden; }
+.shot img{ display:block; width:100%; height:auto; }
+.caption{ display:flex; align-items:center; gap:10px; font:400 16px/1.3 var(--font-sans); color:var(--fg3); margin-top:14px; }
+
+/* 영역(존): 구조도의 묶음 배경. dash = 격리·샌드박스 강조 */
+.zone{ background:var(--neutral-50); border-radius:var(--hs-radius); padding:28px; display:flex; flex-direction:column; gap:20px; }
+.zone .zl{ font:700 17px/1 var(--font-sans); color:var(--fg2); display:flex; align-items:center; gap:10px; }
+.zone.dash{ background:rgba(255,106,19,.04); border:2px dashed rgba(255,106,19,.45); }
+.badge{ display:inline-block; font:700 14px/1 var(--font-sans); letter-spacing:.2em; text-transform:uppercase;
+  padding:8px 14px; border-radius:999px; background:var(--litbig-orange); color:#fff; }
+
+/* ── 5. 아티팩트 미리보기 축소(house.js 가 http(s) 에서만 html.fit 을 켠다) ── */
+@media screen{
+  html.fit body{ padding:24px 0; background:#3A3F4B; }
+  html.fit section.slide{ zoom:var(--fit,1); margin:0 auto 24px; box-shadow:0 10px 40px rgba(0,0,0,.35); }
+}
