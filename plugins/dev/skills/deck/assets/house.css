@@ -76,7 +76,7 @@ section.slide.dark .hd h2{ color:#fff; }
 .card .foot svg{ width:24px; height:24px; color:var(--fg3); flex-shrink:0; }
 .card.on .foot, .card.on .foot svg{ color:var(--hs-warn-fg); }
 
-/* 아이콘 타일 — 그림 위주의 주인공. 아이콘은 인라인 SVG(라인, stroke 2) */
+/* 아이콘 타일 — 보조 장식. 장의 주인공은 5절 도식이다. 아이콘은 인라인 SVG(라인, stroke 2) */
 .tile{ width:80px; height:80px; flex-shrink:0; border-radius:20px; background:var(--litbig-ink); color:#fff;
   display:grid; place-items:center; box-shadow:var(--hs-tile-shadow); }
 .tile.on{ background:var(--litbig-orange); box-shadow:var(--hs-tile-shadow-on); }
@@ -124,7 +124,51 @@ svg.i, .tile svg, .chip svg, .foot svg{ fill:none; stroke:currentColor; stroke-w
 .badge{ display:inline-block; font:700 14px/1 var(--font-sans); letter-spacing:.2em; text-transform:uppercase;
   padding:8px 14px; border-radius:999px; background:var(--litbig-orange); color:#fff; }
 
-/* ── 5. 아티팩트 미리보기 축소(house.js 가 http(s) 에서만 html.fit 을 켠다) ── */
+/* ── 5. 도식(diagram) — 아키텍처·시스템 플로우·시퀀스·상태도의 정본 ─────────
+   한 장의 그림 = 인라인 SVG 한 장(<svg class="dg" viewBox="0 0 1700 720">). 노드·영역·
+   연결선을 한 좌표계에 두므로 HTML 카드 + 오버레이 SVG 처럼 선이 어긋나지 않는다.
+   색·굵기는 여기 클래스가 주고, 마크업에는 좌표와 글자만 적는다. */
+svg.dg{ display:block; width:100%; height:auto; max-height:100%; font-family:var(--font-sans); }
+svg.dg text{ fill:var(--litbig-ink); font-size:26px; font-weight:700; }
+svg.dg .t-sub{ fill:var(--fg3); font-size:19px; font-weight:500; }
+svg.dg .t-inv{ fill:#fff; }
+svg.dg .t-inv.t-sub{ fill:rgba(245,241,238,.72); }
+/* 선 위 라벨: 흰 테두리(halo)로 선을 끊어 읽히게 한다 */
+svg.dg .t-lbl{ fill:var(--fg2); font-size:20px; font-weight:600; paint-order:stroke;
+  stroke:#fff; stroke-width:10px; stroke-linejoin:round; }
+svg.dg .t-lbl.on{ fill:var(--hs-warn-fg); }
+
+/* 노드: 흰 박스 + 연한 선 + 약한 그림자. core = 주인공(네이비 채움), on = 결론·변경점 하나 */
+svg.dg .n{ fill:#fff; stroke:#D3D9E3; stroke-width:2; filter:drop-shadow(0 6px 12px rgba(30,42,68,.10)); }
+svg.dg .n.core{ fill:var(--litbig-ink); stroke:none; filter:drop-shadow(0 8px 16px rgba(30,42,68,.22)); }
+svg.dg .n.on{ stroke:var(--litbig-orange); stroke-width:3; }
+svg.dg .n.ext{ fill:none; stroke:#9AA5B8; stroke-dasharray:8 6; filter:none; }   /* 외부 시스템·범위 밖 */
+svg.dg .n.del{ fill:none; stroke:#C4CBD6; stroke-dasharray:6 6; filter:none; opacity:.6; }   /* 사라진 것 */
+svg.dg .dia{ fill:#fff; stroke:var(--litbig-ink); stroke-width:2; }   /* 분기(마름모) */
+
+/* 영역: 레이어·존·스윔레인 배경. dash = 격리·샌드박스 */
+svg.dg .grp{ fill:var(--neutral-50); stroke:none; }
+svg.dg .grp.alt{ fill:#F1F3F7; }
+svg.dg .grp.dash{ fill:rgba(255,106,19,.04); stroke:rgba(255,106,19,.45); stroke-width:2; stroke-dasharray:10 8; }
+svg.dg .grp-t{ fill:var(--fg2); font-size:18px; font-weight:700; letter-spacing:.08em; }
+
+/* 연결선: 기본 네이비 실선, on = 핵심 경로(장당 하나), async = 비동기·응답, weak = 보조 */
+svg.dg .e{ fill:none; stroke:var(--litbig-ink); stroke-width:2.5; stroke-linecap:round; stroke-linejoin:round; }
+svg.dg .e.on{ stroke:var(--litbig-orange); stroke-width:3.5; }
+svg.dg .e.async{ stroke-dasharray:9 7; }
+svg.dg .e.weak{ stroke:#9AA5B8; stroke-width:2; }
+svg.dg .life{ stroke:#B5BECC; stroke-width:2; stroke-dasharray:3 8; }   /* 시퀀스 lifeline */
+svg.dg .ah{ fill:var(--litbig-ink); } svg.dg .ah.on{ fill:var(--litbig-orange); } svg.dg .ah.weak{ fill:#9AA5B8; }
+
+/* 번호 배지(시스템 플로우 순번) */
+svg.dg .no{ fill:var(--litbig-ink); } svg.dg .no.on{ fill:var(--litbig-orange); }
+svg.dg .no-t{ fill:#fff; font-size:18px; font-weight:700; }
+
+/* 도식 아래 한 줄 결론(캡션). 그림이 못 하는 말만 */
+.dg-cap{ text-align:center; font:500 22px/1.4 var(--font-sans); color:var(--fg2); }
+.dg-cap b{ color:var(--litbig-ink); }
+
+/* ── 6. 아티팩트 미리보기 축소(house.js 가 http(s) 에서만 html.fit 을 켠다) ── */
 @media screen{
   html.fit body{ padding:24px 0; background:#3A3F4B; }
   html.fit section.slide{ zoom:var(--fit,1); margin:0 auto 24px; box-shadow:0 10px 40px rgba(0,0,0,.35); }
