@@ -4,13 +4,16 @@
 # 사용:  jira_task.sh <subcommand> [args...]
 #   me                         내 accountId·표시명
 #   profile                    로컬 프로필(~/.config/mccm/jira-task.json) JSON. 없으면 {}
+#   profile-path               이 스크립트가 읽는(없으면 앞으로 읽게 될) 프로필 경로 — 프로필 저장 시 Write 대상
 #   issue KEY...               이슈 필드 요약(JSON 1줄/이슈) — 에픽·참고 티켓·생성 검증 공용
 #   resolve NUM [PROJ...]      번호만 받은 티켓 → PROJ-NUM 후보를 각각 GET(404 는 건너뜀)
 #   epics [DAYS]               에픽 추천 후보 TSV (최근 DAYS일 내 담당 티켓의 parent + 프로필 프로젝트 미완료 에픽)
 #   children EPIC              에픽 아래 내 담당 티켓 TSV (중복 생성 확인)
 #   createmeta PROJ [TYPE]     생성 화면 필드 TSV (fieldId·필수·이름) — 기본 TYPE=작업
 #   bizdays START END          양끝 포함 영업일 수(주말만 제외)
-#   create --confirm FILE      ⚠ 외부 쓰기. 승인받은 payload JSON 을 POST /rest/api/3/issue
+#   create --confirm FILE [--other-project=PROJ]
+#                              ⚠ 외부 쓰기. 승인받은 payload JSON 을 POST /rest/api/3/issue
+#                              (project 가 프로필 .project 와 다르면 거부 — 사용자가 지시한 PROJ 만 예외)
 #   epictype PROJ              프로젝트의 에픽 이슈 유형 "name<TAB>id" (jira-epic-create 용)
 #   create-epic --confirm FILE ⚠ 외부 쓰기. parent 없는 에픽 payload 를 POST (유형이 에픽인지 사전 검사)
 #   editmeta KEY               편집 화면 필드 TSV — 생성 화면에 없는 필드를 생성 후 넣을 수 있는지 확인
@@ -141,7 +144,7 @@ epic_type_of() {
 cmd="${1:-}"; [ $# -gt 0 ] && shift
 # 네트워크를 쓰는 명령은 자격을 먼저 확인한다 — jt_req 는 $(...) 안에서 돌아 die 가 호출부를 못 멈춘다.
 case "$cmd" in
-  ""|profile|bizdays) ;;
+  ""|profile|profile-path|bizdays) ;;
   *) jira_load_cfg || die "jira config(server/login) 없음 또는 server 가 https 가 아니다: $JIRA_CFG"
      [ -n "${JIRA_API_TOKEN:-}" ] || die "JIRA_API_TOKEN 미설정 — 'bash -lc' 로 실행했는지 확인" ;;
 esac
@@ -151,6 +154,15 @@ case "$cmd" in
 
   profile)
     printf '%s\n' "$PROFILE" ;;
+
+  profile-path)
+    # 읽는 순서(jt_profile_path)와 같은 우선순위로 쓰기 경로를 정해, 저장한 파일과 가드가 읽는 파일이 갈리지 않게 한다.
+    p="$(jt_profile_path)" || {
+      if   [ -n "${JIRA_TASK_PROFILE:-}" ]; then p="$JIRA_TASK_PROFILE"
+      elif [ -n "${XDG_CONFIG_HOME:-}" ];   then p="$XDG_CONFIG_HOME/mccm/jira-task.json"
+      else p="$HOME/.config/mccm/jira-task.json"; fi; }
+    command -v cygpath >/dev/null 2>&1 && p="$(cygpath -w "$p")"
+    printf '%s\n' "$p" ;;
 
   issue)
     [ $# -ge 1 ] || die "사용: issue KEY..."
@@ -246,6 +258,24 @@ case "$cmd" in
       || die "payload 에 timetracking.originalEstimate 가 없다 — 필수 필드다"
     jq -e '.fields.parent.key and .fields.project and .fields.issuetype and .fields.summary' "$f" >/dev/null 2>&1 \
       || die "payload 에 parent.key·project·issuetype·summary 중 빠진 것이 있다"
+    # 작업 티켓 프로젝트는 프로필 .project 로 고정한다(에픽은 다른 프로젝트여도 된다 — 교차 프로젝트 parent).
+    # 참고 티켓·에픽의 프로젝트가 섞여 들어오는 사고를 POST 전에 막는다. 예외는 대상 키를 명시한 --other-project=KEY 로만 연다.
+    # project 는 {"key"} 한 키만 받는다 — 참고 티켓의 {id,key,self} 를 옮겨 key 만 바꾸면 id 쪽 프로젝트로 생성될 수 있다.
+    jq -e '(.fields.project | type) == "object" and (.fields.project | keys) == ["key"]' "$f" >/dev/null 2>&1 \
+      || die "payload project 는 {\"key\": ...} 만 넣는다(id·self 혼입 금지)"
+    got="$(jq -r '.fields.project.key' "$f" | tr -d '\r')"; need_proj "$got"
+    want="$(pf '.project')"; [ -z "$want" ] || need_proj "$want"
+    other=""
+    case "${3:-}" in
+      "") ;;
+      --other-project=*) other="${3#--other-project=}"; need_proj "$other" ;;
+      *) die "알 수 없는 인자: '$3'" ;;
+    esac
+    if [ -n "$other" ]; then
+      [ "$got" = "$other" ] || die "--other-project=$other 와 payload project '$got' 가 다르다"
+    elif [ -n "$want" ]; then
+      [ "$got" = "$want" ] || die "payload project '$got' 가 프로필 project '$want' 와 다르다 — 작업 티켓은 프로필 프로젝트에 만든다. 멈추고 사용자에게 확인할 것"
+    fi
     code="$(jt_req POST /rest/api/3/issue "$TMP/c" "$f")"
     echo "HTTP $code"
     case "$code" in
