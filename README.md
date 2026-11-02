@@ -84,7 +84,7 @@ env 플러그인은 `mccm.json` 파일 하나에 환경 전체를 선언적으�
 
 **PMO Vault 기록(선택):** 회사 PMO Vault를 로컬에 체크아웃해 두었다면 `today`가 워크로그 반영 시 그날 작업한 저장소의 daily-log를 pmo-vault `session-cleanup`("정리해") 형식으로 남긴다. 볼트 경로는 처음 한 번 `bash plugins/worklog/skills/today/vault.sh setroot --confirm <볼트 경로>`로 저장한다(`~/.config/mccm/vault-root`, `MCCM_VAULT_ROOT` 환경변수가 있으면 우선). 볼트 경로·형식 승인 기준(`~/.config/mccm/vault-spec/`)·저장소→볼트 프로젝트 매핑 기억(`~/.config/mccm/vault-map.tsv`)은 모두 PC 로컬 상태라 `worklog.json`·gist와 무관하다. 볼트의 `context/project.md` `source_repos`에 실제 저장소 URL이 등록돼 있으면 자동 매핑되고, 없으면 처음 한 번 어느 프로젝트에 기록할지 묻는다.
 
-**개인화(선택):** 표시 이름·보고서 문체·이슈키 예시·주간보고 템플릿 등을 자신에게 맞추려면 `plugins/worklog/worklog.example.json`을 `~/.config/mccm/worklog.json`으로 복사해 값을 채운다. 설정이 없어도 `today`·`week`는 SKILL.md 기본 규칙 그대로 동작한다 — 개인화는 선택이지 필수가 아니다. 자세한 위치·검증 방법은 아래 「워크로그 개인화」 절 참고. `jira-task-create`는 별도 프로필 `~/.config/mccm/jira-task.json`(예시 `plugins/worklog/jira-task.example.json`)에서 기본 프로젝트·에픽 후보 프로젝트·참조자·레이블을 읽는다 — 참고 티켓을 주면 그 값이 우선하고, 프로필이 없어도 동작한다.
+**개인화(선택):** 표시 이름·보고서 문체·이슈키 예시·주간보고 템플릿 등을 자신에게 맞추려면 `plugins/worklog/worklog.example.json`을 `~/.config/mccm/worklog.json`으로 복사해 값을 채운다. 설정이 없어도 `today`·`week`는 SKILL.md 기본 규칙 그대로 동작한다 — 개인화는 선택이지 필수가 아니다. 자세한 위치·검증 방법은 아래 「워크로그 개인화」 절 참고. `jira-task-create`는 별도 프로필 `~/.config/mccm/jira-task.json`(예시 `plugins/worklog/jira-task.example.json`)에서 기본 프로젝트·에픽 후보 프로젝트·참조자·레이블을 읽는다 — 참고 티켓을 주면 그 값이 우선하되 **작업 티켓 프로젝트는 프로필 `project`로 고정**된다(참고 티켓·에픽이 다른 프로젝트여도 바뀌지 않고, 스크립트가 불일치 payload를 POST 전에 거부한다). 프로필이 없어도 동작하며, `project`가 비어 있으면 처음 한 번 묻고 프로필에 저장한다.
 
 ## 설치 방법
 
