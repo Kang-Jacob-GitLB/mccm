@@ -1,6 +1,8 @@
 {
   "_note": "jira-task-create 개인화 프로필 예시. ~/.config/mccm/jira-task.json 으로 복사한 뒤 값을 채운다. 참고 티켓을 주면 그 티켓 값이 이 프로필보다 우선한다 — 단 project 는 예외로 이 프로필 값에 고정된다(작업 티켓은 에픽·참고 티켓 프로젝트와 무관하게 여기 적은 프로젝트에 만든다). 토큰·서버 주소·로그인 이메일은 넣지 않는다(JIRA_API_TOKEN env / ~/.config/.jira/.config.yml 이 각각 담당). 실명·accountId 가 들어가므로 저장소에 커밋하지 않는다.",
   "version": 1,
+  "sync": false,
+  "_sync_note": "true 면 /upload 가 env gist 의 형제 파일 jira-task.json 으로 올리고 /download 가 복원한다. gist 의 secret 은 URL 을 아는 누구나 볼 수 있다 — 참조자 실명·accountId 가 함께 올라간다. 나중에 false 로 바꿔도 이미 올라간 파일은 gist 에 남는다(지워도 리비전 이력에 남는다).",
   "project": "ABC",
   "issuetype": "작업",
   "epic_issuetype": "Epic",

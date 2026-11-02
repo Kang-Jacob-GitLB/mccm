@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "개인용 Claude Code 플러그인 마켓플레이스",
-    "version": "5.9.1"
+    "version": "5.10.0"
   },
   "plugins": [
     {
@@ -17,7 +17,7 @@
     {
       "name": "env",
       "source": "./plugins/env",
-      "description": "Claude Code 환경 동기화 — Gist 기반 upload/download로 플러그인, MCP, hooks, settings, ccstatusline을 여러 PC에서 동일 유지"
+      "description": "Claude Code 환경 동기화 — Gist 기반 upload/download로 플러그인, MCP, hooks, settings, ccstatusline, CLAUDE.md, worklog 프로필(worklog·jira-task)을 여러 PC에서 동일 유지"
     },
     {
       "name": "worklog",
