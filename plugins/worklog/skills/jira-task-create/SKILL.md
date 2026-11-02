@@ -30,7 +30,7 @@ JT() { bash -l "$SKILL_DIR/jira_task.sh" "$@"; }   # 로그인 셸이라 JIRA_AP
 ## 요구사항
 - `jira init` 으로 만든 `~/.config/.jira/.config.yml`(server·login, server 는 https) + `JIRA_API_TOKEN` env. `JT me` 가 내 계정을 내면 정상.
 - `jq`·`curl`·`base64`.
-- 개인화(선택): `plugins/worklog/jira-task.example.json` → `~/.config/mccm/jira-task.json` 복사 후 편집. 기본 프로젝트·에픽 후보 프로젝트·참조자·레이블·제품 태그·커스텀 필드 ID 를 담는다. 실명·accountId 가 들어가므로 저장소에 커밋하지 않는다. `JT profile` 로 읽힌 값을 확인한다(없으면 `{}`).
+- 개인화(선택): `plugins/worklog/jira-task.example.json` → `~/.config/mccm/jira-task.json` 복사 후 편집. 기본 프로젝트·에픽 후보 프로젝트·참조자·레이블·제품 태그·커스텀 필드 ID 를 담는다. 실명·accountId 가 들어가므로 저장소에 커밋하지 않는다. `JT profile` 로 읽힌 값을 확인한다(없으면 `{}`). 최상위 `sync: true` 면 `/env:upload`·`/env:download` 가 env gist 의 형제 파일 `jira-task.json` 으로 여러 PC 에 동기화한다(이 스킬은 `sync` 키를 쓰지 않는다).
 
 ## 입력
 | 항목 | 필수 | 받는 법 |

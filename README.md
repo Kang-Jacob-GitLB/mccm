@@ -157,6 +157,7 @@ bash plugins/worklog/skills/today/_profile.sh --check
 > - Jira API 토큰은 `worklog.json`이 아니라 `JIRA_API_TOKEN` 환경변수가 담당한다.
 > - Jira 서버 주소·로그인 이메일은 `worklog.json`이 아니라 `~/.config/.jira/.config.yml`이 담당한다.
 > - 여러 PC 동기화가 필요하면 `sync: true`로 두고 `/upload`가 env gist의 형제 파일 `worklog.json`으로 함께 올리게 할 수 있다. 다만 gist의 "secret"은 비공개가 아니라 **URL을 아는 누구나 접근 가능**하다는 뜻이므로 URL 공유에 주의한다.
+> - `jira-task-create` 프로필 `~/.config/mccm/jira-task.json`도 같은 방식이다. 최상위 `sync: true`이면 `/upload`가 형제 파일 `jira-task.json`으로 올리고, `/download`가 같은 승인 게이트(내용 해시, 승인 변수 `JT_APPROVED`)로 복원한다. 두 파일은 각각 따로 켜고 끌 수 있다. 이 파일에는 참조자 실명·accountId가 들어간다. 민감정보 스캔은 `reference_users[].accountId`가 Jira accountId 형식에 정확히 맞을 때만 그 값을 예외로 둔다.
 >
 > **금칙어:** 향후 `worklog.json`의 스칼라 값을 `settings.json`의 `env`로 빼서 관리할 경우, 변수명에 `TOKEN`·`KEY`·`SECRET`·`AUTH`·`PASS`·`PWD`·`CREDENTIAL`·`HEADER`·`DSN`이 들어가면 `/upload`가 gist에서 **조용히 지운다**(`plugins/env/skills/upload/SKILL.md`의 민감정보 필터).
 
