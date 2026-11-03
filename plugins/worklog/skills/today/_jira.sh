@@ -57,16 +57,29 @@ jira_rest() {
     | curl -s -H @- -H "Accept: application/json" "$JIRA_SERVER$1" 2>/dev/null
 }
 
+# 내 accountId 를 전역 JIRA_MY_ACCT 에 로드(이미 있으면 재조회 안 함). 얻으면 rc0.
+# ⚠ 이 Jira 는 emailAddress 를 숨겨 author.emailAddress 로는 본인을 못 가린다 → accountId 기준.
+#    서브셸·파이프의 대입은 부모로 안 올라오므로, 호출부는 갈라지기 전에 한 번 불러 캐시를 데워 둔다.
+jira_my_acct() {
+  [ -n "${JIRA_MY_ACCT:-}" ] && return 0
+  command -v jq >/dev/null 2>&1 || return 1
+  JIRA_MY_ACCT=$(jira_rest "/rest/api/3/myself" | jq -r '.accountId // ""' 2>/dev/null | tr -d '\r') || true
+  [ -n "${JIRA_MY_ACCT:-}" ]
+}
+
 # 한 이슈의 내 당일 워크로그 → "startedISO<TAB>timeSpent<TAB>timeSpentSeconds" 줄들.
 # $1=KEY $2=YYYY-MM-DD
+# 본인 판별은 accountId 우선, accountId 를 못 얻었을 때만 emailAddress==login 으로 보조한다.
 # ⚠ Windows(MSYS) 의 jq -r 는 줄 끝에 CR(\r) 을 붙이는 경우가 있어, 마지막 필드를
 #    숫자로 쓰면 arithmetic 오류가 난다 → tr 로 CR 제거 후 반환한다.
 jira_issue_worklogs() {
   jira_load_cfg || return 0
   command -v jq >/dev/null 2>&1 || return 0
+  jira_my_acct || true
   jira_rest "/rest/api/3/issue/$1/worklog" \
-    | jq -r --arg me "$JIRA_LOGIN" --arg day "$2" '.worklogs[]?
-        | select((.author.emailAddress // "")==$me)
+    | jq -r --arg acct "${JIRA_MY_ACCT:-}" --arg me "$JIRA_LOGIN" --arg day "$2" '.worklogs[]?
+        | select(($acct != "" and (.author.accountId // "")==$acct)
+                 or ((.author.emailAddress // "")!="" and (.author.emailAddress // "")==$me))
         | select(.started|startswith($day))
         | "\(.started)\t\(.timeSpent)\t\(.timeSpentSeconds)"' 2>/dev/null \
     | tr -d '\r' || true
@@ -82,15 +95,15 @@ jira_worklog_issues() {
     | sed -E 's/\x1b\[[0-9;]*m//g' | tr -d ' \r' || true
 }
 
-# 워크로그 후보 이슈(활성 우선 + 최근접근, KEY 중복제거). $1=PROJECT(옵션).
-# 출력: jira --plain 한 줄(KEY STATUS SUMMARY ...).
+# 워크로그 후보 이슈(내 담당 · 미완료, KEY 중복제거). $1=PROJECT(옵션).
+# ⚠ 남의 티켓(--history 의 최근 접근 이슈)은 넣지 않는다 — 후보에 섞이면 남의 티켓에 워크로그가
+#    들어간다. `-a "$(jira me)"` 대신 JQL currentUser() 로 못박는다: jira me 가 비면 -a 가 빠져
+#    담당자 필터가 통째로 사라진다. 출력: jira --plain 한 줄(KEY STATUS SUMMARY ...).
 jira_candidates() {
   command -v jira >/dev/null 2>&1 || return 0
-  local proj me; proj=$(jira_project "${1:-}"); me=$(jira me 2>/dev/null) || true
-  { jira issue list ${proj:+-p "$proj"} ${me:+-a "$me"} -q "statusCategory != Done" \
+  local proj; proj=$(jira_project "${1:-}")
+  jira issue list ${proj:+-p "$proj"} -q "assignee = currentUser() AND statusCategory != Done" \
        --order-by updated --reverse --plain --no-headers \
-       --columns KEY,STATUS,SUMMARY --paginate 0:20 2>/dev/null
-    jira issue list ${proj:+-p "$proj"} --history \
-       --plain --no-headers --columns KEY,STATUS,SUMMARY --paginate 0:15 2>/dev/null
-  } | sed -E 's/\x1b\[[0-9;]*m//g; s/[[:space:]]+$//' | awk 'NF{k=$1; if(!seen[k]++) print}' || true
+       --columns KEY,STATUS,SUMMARY --paginate 0:30 2>/dev/null \
+    | sed -E 's/\x1b\[[0-9;]*m//g; s/[[:space:]]+$//' | awk 'NF{k=$1; if(!seen[k]++) print}' || true
 }
