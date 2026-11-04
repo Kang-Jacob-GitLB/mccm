@@ -37,6 +37,10 @@
 #                   이 구간과 겹치면 그 뒤로 밀린다. "none" 이면 점심 회피 끔.
 #   -h, --help      이 도움말.
 #
+# 담당자 검사: 각 행(dry-run 포함)마다 이슈 담당자 accountId 를 REST 로 조회해 내 accountId 와
+#   다르면 그 행을 FAIL("담당자 아님(담당: 이름)") 처리하고 입력하지 않는다. 조회 자체가 실패해도
+#   FAIL. 우회 옵션은 없다.
+#
 # 종료코드: FAIL 이 하나라도 있으면 1 (dry-run 도 동일 — 파이프라인이 조용히
 #           통과하지 않게). 그 외 0.
 #
@@ -246,6 +250,24 @@ place_no_overlap() {
   echo "$s"
 }
 
+# ── 담당자 검사 ─────────────────────────────────────────────
+# 내 담당이 아닌 이슈엔 워크로그를 넣지 않는다(남의 티켓 오입력 사고 방지). 우회 옵션은 없다.
+# 이슈 담당자 accountId 를 REST 로 조회해 내 accountId(/myself) 와 비교한다. 조회 실패(자격 없음·
+# 네트워크·권한)는 확인 불가이므로 안전하게 거부한다. 사유만 stdout 으로 내고, 통과하면 rc0.
+# 호출부가 FAIL 줄을 만든다(dry-run·apply 공통).
+unset JIRA_MY_ACCT            # 실행 환경에서 넘어온 값은 믿지 않는다(검사 우회 방지)
+jira_my_acct || true            # 실행당 1회 조회·캐시(루프 안에서 재조회하지 않는다)
+assignee_check() {  # $1=KEY
+  local resp row st aid dn
+  if [ -z "${JIRA_MY_ACCT:-}" ]; then echo "담당자 확인 불가(내 accountId 조회 실패 — jira config·JIRA_API_TOKEN 확인)"; return 1; fi
+  resp=$(jira_rest "/rest/api/3/issue/$1?fields=assignee") || true
+  row=$(printf '%s' "$resp" | jq -r 'if (.fields|type)=="object" then "OK\u001f\(.fields.assignee.accountId // "")\u001f\(.fields.assignee.displayName // "없음")" else "ERR" end' 2>/dev/null | tr -d '\r') || true
+  IFS=$'\x1f' read -r st aid dn <<<"$row" || true   # 탭은 연속 시 뭉개져 빈 담당자 칸이 당겨진다
+  if [ "${st:-}" != "OK" ]; then echo "담당자 확인 불가(이슈 조회 실패)"; return 1; fi
+  if [ "$aid" != "$JIRA_MY_ACCT" ]; then echo "담당자 아님(담당: $(san "${dn:-없음}" 40))"; return 1; fi
+  return 0
+}
+
 ok=0; skip=0; fail=0; n=0
 errf="$(mktemp)"
 trap 'rm -f "$errf"' EXIT
@@ -269,6 +291,13 @@ while IFS=$'\t' read -r KEY TIME STARTED COMMENT || [ -n "${KEY:-}" ]; do
     [A-Za-z0-9]*-[0-9]*) ;;
     *) echo "SKIP  (잘못된 이슈키: $k_show)"; skip=$((skip+1)); continue ;;
   esac
+
+  # 담당자 검사 — 내 담당이 아니면 그 행을 FAIL(dry-run 포함, apply 하지 않는다).
+  if ! why=$(assignee_check "$KEY"); then
+    printf "담당자 검사 실패: KEY=%s — %s\n" "$k_show" "$why" >&2
+    echo "FAIL  $k_show  : $why"
+    fail=$((fail+1)); continue
+  fi
 
   # 30분(=ROUND) 단위 반올림. 원본과 다르면 표시용으로 보관.
   # 파싱 실패는 전체 중단이 아니라 그 행만 FAIL 로 끊는다(사유는 to_min 이 stderr 로).
