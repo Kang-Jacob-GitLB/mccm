@@ -89,8 +89,107 @@ wp_problems() {
         (try (if ((.examples.issue_keys // []) | (type == "array")
                   and ((map(select((type != "string")
                                    or ((test("^[A-Z][A-Z0-9]*-[0-9]+$"))|not))) | length) > 0))
-               then "examples.issue_keys 는 ABC-123 형식의 문자열이어야 한다" else empty end) catch empty)
+               then "examples.issue_keys 는 ABC-123 형식의 문자열이어야 한다" else empty end) catch empty),
+        (try (if ((.report.project_names // null) != null) and ((.report.project_names|type) != "object")
+               then "report.project_names 는 {\"태그\": \"표시명\"} 객체여야 한다" else empty end) catch empty),
+        (try ((.report.project_names // {}) | select(type == "object") | to_entries[]
+               | select((.value|type) != "string")
+               | "report.project_names.\(.key) 의 값은 문자열이어야 한다") catch empty),
+        # 아래 두 검사는 wp_project_names 의 적용 조건과 같다 — --check 가 OK 인데
+        # week 에서 조용히 무시되는 항목이 없게 한다.
+        (try ((.report.project_names // {}) | select(type == "object") | keys_unsorted[]
+               | select(test("[\u0000-\u001f\u007f\\[\\]]") or length < 1 or length > 40)
+               | "report.project_names 키 \"\(.)\" 는 무시된다 (1~40자, [ ]·제어문자 불가)") catch empty),
+        (try ((.report.project_names // {}) | select(type == "object") | to_entries[]
+               | select((.value|type) == "string")
+               | select((.value | gsub("^\\s+|\\s+$";"") | length) as $l | $l < 1 or $l > 80)
+               | "report.project_names.\(.key) 의 표시명은 무시된다 (공백 제외 1~80자)") catch empty)
       ] | .[]' 2>/dev/null | tr -d '\r'
+  return 0
+}
+
+# 프로젝트 표시명 매핑(report.project_names)을 정화된 compact JSON 객체로 출력한다.
+#   jira_week.sh 가 jq --argjson 데이터로만 쓴다(필터 문자열에 넣지 않는다 — 상시 규칙 2).
+#   문자열 값만 남기고, 키는 1~40자·[ ]·제어문자 없음, 값은 제어문자 제거 후 1~80자만 통과시킨다.
+#   키 문자 집합(WP_TAG_RE)은 여기서 강제하지 않는다 — 이 값은 셸로 가지 않으므로
+#   파일을 직접 고쳐 [R&D] 같은 태그에도 표시명을 붙일 수 있게 둔다(CLI 등록만 제한).
+#   어떤 실패에도 rc0 + "{}" — 호출부가 set -euo pipefail 이다.
+wp_project_names() {
+  local out=""
+  [ "$WP_STATUS" = ok ] || wp_load
+  if [ "$WP_STATUS" = ok ]; then
+    out="$(printf '%s' "$WP_JSON" | jq -c '
+        (.report.project_names? // {}) | (if type == "object" then . else {} end)
+        | to_entries
+        | map(select((.value|type) == "string")
+              | select((.key | test("[\u0000-\u001f\u007f\\[\\]]") | not)
+                       and (.key|length) >= 1 and (.key|length) <= 40)
+              | .value |= (gsub("[\u0000-\u001f\u007f]"; "") | gsub("^\\s+|\\s+$";""))
+              | select((.value|length) >= 1 and (.value|length) <= 80))
+        | from_entries' 2>/dev/null | tr -d '\r')" || out=""
+  fi
+  case "$out" in '{'*'}') printf '%s' "$out" ;; *) printf '{}' ;; esac
+  return 0
+}
+
+# 프로젝트 표시명 등록/삭제(로컬 파일 쓰기). 사용자가 이번 대화에서 명시적으로 요청했을 때만 호출한다.
+#   값은 jq --arg 로만 넘긴다. 임시 파일에 쓴 뒤 mv, 기존 파일은 타임스탬프 .bak 로 백업한다.
+#   $1=set|unset  $2=TAG  $3=NAME(set 일 때)
+#   태그 문자 집합(WP_TAG_RE)은 jira_week.sh 의 미등록 태그 안내와 같다.
+#   셸 메타문자($ ` ; 따옴표 등)가 든 태그는 CLI 로 등록하거나 안내받지 못한다(파일 직접 편집은 가능).
+# \A·\z: jq 의 $ 는 끝 개행 앞에서도 맞는다. MCCM_EOF 는 SKILL.md heredoc 구분자라 제외한다
+# (태그가 구분자와 같으면 heredoc 이 일찍 닫혀 표시명 줄이 셸 명령이 된다).
+WP_TAG_RE='\A(?!MCCM_EOF\z)[\p{L}\p{N}._ -]{1,40}\z'
+wp_set_project_name() {
+  local op="$1" tag="${2:-}" name="${3:-}" f dir tmp raw
+  command -v jq >/dev/null 2>&1 || { echo "FAIL: jq 가 없다" >&2; return 2; }
+  # 검증은 jq 로 한다 — grep 은 줄 단위라 개행을 제어문자로 잡지 못한다.
+  jq -en --arg t "$tag" --arg re "$WP_TAG_RE" '$t | test($re)' >/dev/null 2>&1 \
+    || { echo "FAIL: 태그는 글자·숫자·. _ - 공백만, 1~40자" >&2; return 2; }
+  if [ "$op" = set ]; then
+    jq -en --arg n "$name" '$n | test("[\u0000-\u001f\u007f]") | not' >/dev/null 2>&1 \
+      || { echo "FAIL: 표시명에 제어문자(개행 포함)를 넣을 수 없다" >&2; return 2; }
+    name="$(printf '%s' "$name" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+    # 길이는 jq(코드포인트)로 잰다 — ${#name} 은 LANG 이 비면 바이트 수라 한글이 3배로 세진다.
+    jq -en --arg n "$name" '($n|length) >= 1 and ($n|length) <= 80' >/dev/null 2>&1 \
+      || { echo "FAIL: 표시명은 1~80자여야 한다" >&2; return 2; }
+  fi
+  # MCCM_WORKLOG_CONFIG 가 지정돼 있으면 파일이 아직 없어도 그 경로에 쓴다.
+  # (wp_find 는 없는 후보를 건너뛰므로, 그대로 쓰면 실제 프로필이 조용히 수정된다)
+  if [ -n "${MCCM_WORKLOG_CONFIG:-}" ]; then f="$MCCM_WORKLOG_CONFIG"
+  else f="$(wp_find)" || f="${HOME:?}/.config/mccm/worklog.json"; fi
+  dir="$(dirname "$f")"; mkdir -p "$dir" || return 2
+  if [ -f "$f" ]; then
+    raw="$(sed -e '1s/^\xEF\xBB\xBF//' -e 's/\r$//' "$f")"
+    printf '%s' "$raw" | jq -e 'type=="object"' >/dev/null 2>&1 \
+      || { echo "FAIL: $f 가 올바른 JSON 객체가 아니다 — 먼저 고쳐라(--check)" >&2; return 2; }
+  else
+    raw='{"version":1,"sync":false}'
+  fi
+  tmp="$(mktemp "$dir/.worklog.json.XXXXXX")" || return 2
+  # 파이프 종료코드는 마지막 tr 의 것이라(pipefail 없음) jq 실패를 못 잡는다 →
+  # mv 전에 결과물 자체를 검증한다. 빈 파일로 프로필을 덮지 않기 위해서다.
+  printf '%s' "$raw" | jq --arg op "$op" --arg t "$tag" --arg n "$name" '
+        .report = ((.report // {}) | if type == "object" then . else {} end)
+        | .report.project_names = ((.report.project_names // {}) | if type == "object" then . else {} end)
+        | if $op == "set" then .report.project_names[$t] = $n
+          else .report.project_names |= del(.[$t]) end' 2>/dev/null | tr -d '\r' > "$tmp"
+  if ! [ -s "$tmp" ] \
+     || ! jq -e 'type == "object" and ((.report.project_names | type) == "object")' "$tmp" >/dev/null 2>&1; then
+    rm -f "$tmp"; echo "FAIL: 갱신 실패 — 기존 파일은 그대로다" >&2; return 2
+  fi
+  # 백업은 이 기능 전용 접두(.bak.pn-)로 겹치지 않는 이름을 만들고 최근 5개만 남긴다.
+  # (/download 의 .bak 은 접두가 달라 건드리지 않는다)
+  if [ -f "$f" ]; then
+    local bak b old=()
+    bak="$(mktemp "$f.bak.pn-$(date +%Y%m%d%H%M%S)-XXXX")" && cp -p "$f" "$bak" \
+      || { rm -f "$tmp" ${bak:+"$bak"}; echo "FAIL: 백업 실패 — 기존 파일은 그대로다" >&2; return 2; }
+    for b in "$f".bak.pn-*; do [ -f "$b" ] && old+=("$b"); done
+    [ "${#old[@]}" -gt 5 ] && rm -f "${old[@]:0:${#old[@]}-5}"
+  fi
+  mv -f "$tmp" "$f" || { rm -f "$tmp"; return 2; }
+  if [ "$op" = set ]; then printf 'OK: %s → %s  (%s)\n' "$tag" "$name" "$f"
+  else printf 'OK: %s 표시명 삭제  (%s)\n' "$tag" "$f"; fi
   return 0
 }
 
@@ -130,12 +229,18 @@ wp_render() {
   # 필드 길이 상한: 초과한 필드만 폐기하고 나머지는 살린다.
   # wp_problems 와 같은 이유로 줄마다 try/catch. 값 하나가 예상 밖 타입이어도
   # 나머지 필드는 살려서 내보낸다(전부 아니면 전무는 최악의 실패 모드다).
-  printf '%s' "$WP_JSON" | jq -r --argjson m "$WP_MAX_FIELD" '
+  # 표시명은 원본이 아니라 week 가 실제로 적용하는 정화본만 보여 준다(걸러진 항목이
+  # "이미 적용함" 라벨을 달고 모델에 보이지 않게).
+  local pn; pn="$(wp_project_names)"
+  printf '%s' "$WP_JSON" | jq -r --argjson m "$WP_MAX_FIELD" --argjson pn "$pn" '
       def cap: if (.|length) > $m then "(생략 — 상한 \($m)자 초과)" else . end;
       (try (.identity.display_name?       // empty | cap | "작성자 표기: \(.)") catch empty),
       (try (.identity.report_destination? // empty | cap | "보고서를 붙여넣는 곳: \(.)") catch empty),
       (try (.report.comment_style?        // empty | cap | "워크로그 코멘트 문체: \(.)") catch empty),
       (try (.report.weekly_style?         // empty | cap | "주간보고 서술 규칙: \(.)") catch empty),
+      (try ($pn | select((type == "object") and (length > 0))
+        | (to_entries | map("\(.key)→\(.value)") | join(" · ") | cap)
+        | "프로젝트 표시명(week 스크립트가 이미 적용함): " + .) catch empty),
       (try ((.examples.issue_keys? // []) | select(type == "array")
         | map(select((type == "string") and test("^[A-Z][A-Z0-9]*-[0-9]+$"))) | select(length > 0)
         | "문서 예시용 이슈키(실제 매핑은 JIRA_CANDIDATES 로만 한다): \(join(", ") | cap)") catch empty),
@@ -162,6 +267,22 @@ wp_render() {
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
   case "${1:-render}" in
     render) wp_render ;;
+    project-names) wp_load; wp_project_names; echo ;;
+    set-project-name)
+      [ $# -eq 3 ] || { echo "usage: _profile.sh set-project-name TAG NAME" >&2; exit 2; }
+      wp_set_project_name set "$2" "$3"; exit $? ;;
+    set-project-name-stdin)
+      # 모델이 호출하는 경로. 값을 셸 인자가 아니라 quoted heredoc 의 stdin 으로 받아
+      # $( ) · 백틱 · 따옴표가 셸에서 해석될 여지를 없앤다. 1행=태그, 2행=표시명.
+      IFS= read -r _t || { echo "FAIL: stdin 1행(태그) 없음" >&2; exit 2; }
+      IFS= read -r _n || [ -n "${_n:-}" ] || { echo "FAIL: stdin 2행(표시명) 없음" >&2; exit 2; }
+      wp_set_project_name set "${_t%$'\r'}" "${_n%$'\r'}"; exit $? ;;
+    unset-project-name-stdin)
+      IFS= read -r _t || [ -n "${_t:-}" ] || { echo "FAIL: stdin 1행(태그) 없음" >&2; exit 2; }
+      wp_set_project_name unset "${_t%$'\r'}"; exit $? ;;
+    unset-project-name)
+      [ $# -eq 2 ] || { echo "usage: _profile.sh unset-project-name TAG" >&2; exit 2; }
+      wp_set_project_name unset "$2"; exit $? ;;
     path)   wp_load; [ -n "$WP_FILE" ] && printf '%s\n' "$WP_FILE" || { echo "(설정 없음)"; exit 1; } ;;
     check|--check)
       # 두 사본 드리프트 자기 검사. 이 파일은 단순 유틸이 아니라 프롬프트 주입 필터라,
@@ -194,6 +315,6 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
         exit 2
       fi
       printf 'OK: %s\n' "$WP_FILE" ;;
-    *) echo "usage: _profile.sh [render|path|--check]" >&2; exit 2 ;;
+    *) echo "usage: _profile.sh [render|path|--check|project-names|set-project-name TAG NAME|unset-project-name TAG|set-project-name-stdin|unset-project-name-stdin]" >&2; exit 2 ;;
   esac
 fi

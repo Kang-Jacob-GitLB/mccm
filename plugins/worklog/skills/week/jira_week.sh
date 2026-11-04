@@ -9,8 +9,9 @@
 #      서술 스타일·고유명사만 담으며 집계 숫자에는 영향하지 않는다.
 #   1) 워크로그 레코드 JSONL (1줄=1워크로그). comment 는 ADF 를 평탄화한 텍스트:
 #      {"date","key","summary","status","started","seconds","time","comment",
-#       "project","title","done","resolved","end"}
-#      project = summary 맨 앞 [태그] (없으면 "공통·경상"), title = 태그를 뗀 summary,
+#       "project","tag","mapped","title","done","resolved","end"}
+#      tag = summary 맨 앞 [태그] (없으면 "경상"), project = tag 를 프로필 report.project_names
+#      로 바꾼 표시명(매핑이 없으면 tag 그대로), mapped = 표시명 등록 여부, title = 태그를 뗀 summary,
 #      done = 상태 카테고리가 done, resolved = 해결일, end = End date 필드(없으면 기한),
 #      recurring = summary 에 "경상" 이 든 상시 이슈(마감 대신 워크로그별 날짜로 표기).
 #   2) "===SUMMARY===" 구분선 후 결정적 집계(기간/총합/프로젝트별/이슈별/일자별) — 사람이 읽는 텍스트.
@@ -151,7 +152,7 @@ def adf2txt:
 | { date:$d, key:$key, summary:$summary, status:$status,
     started:.started, seconds:(.timeSpentSeconds // 0), time:(.timeSpent // ""),
     comment:((.comment // "") | adf2txt | gsub("\n+";" / ") | gsub("^ */ *| */ *$";"")),
-    project:(($summary | capture("^\\s*\\[(?<p>[^\\]]+)\\]")? | .p) // "공통·경상"),
+    project:(($summary | capture("^\\s*\\[(?<p>[^\\]]+)\\]")? | .p) // "경상"),
     title:($summary | sub("^\\s*\\[[^\\]]+\\]\\s*";"")),
     done:($done=="true"),
     recurring:($summary | test("경상")),
@@ -200,6 +201,18 @@ done < <(printf '%s' "$search" \
 wait
 cat "$TMPD"/*.jsonl > "$TMP" 2>/dev/null || true
 
+# 프로젝트 표시명 적용 — 원래 태그는 tag 에 남기고 project 를 표시명으로 바꾼다.
+# 매핑은 프로필 데이터라 --argjson 으로만 넘긴다. 실패하면 매핑 없이(태그 그대로) 진행한다.
+PNAMES="$(wp_project_names)" || PNAMES='{}'
+if jqr -c --argjson n "$PNAMES" \
+     '.project as $t | .tag = $t | .mapped = ($n | has($t)) | .project = ($n[$t] // $t)' "$TMP" \
+     > "$TMPD/mapped.jsonl.tmp" 2>/dev/null; then
+  mv -f "$TMPD/mapped.jsonl.tmp" "$TMP"
+else
+  rm -f "$TMPD/mapped.jsonl.tmp"
+  echo "WARN: 프로젝트 표시명 적용 실패 — 태그 그대로 집계한다." >&2
+fi
+
 # ── 출력 0단: 개인 프로필 ─────────────────────────────────────
 # 설정이 없어도 마커는 항상 낸다. 3단 구조가 조건부로 흔들리면 SKILL.md 의
 # 파싱 계약이 깨진다(===SUMMARY=== 이후 집계 블록은 이 변경과 무관하게 동일).
@@ -236,27 +249,32 @@ agg=$(jqr -r -s '
             elif .done then "완료" + (if .resolved then " · " + (.resolved|md) else "" end)
             else "진행" + (if .end then " · ~" + (.end|md) else "" end) end;
   ( ["T", (map(.seconds)|add // 0), ([.[].key]|unique|length), ([.[].date]|unique|length), length] | @tsv ),
+  ( [.[] | select((.tag // "경상") != "경상" and ((.mapped // false) | not)) | .tag] | unique
+    | (map(select(test($re)))       | select(length > 0) | ["U", join(", ")] | @tsv),
+      (map(select(test($re) | not)) | select(length > 0) | ["UX", length] | @tsv) ),
   ( group_by(.project)
-    | map({p:.[0].project, sec:(map(.seconds)|add),
+    | map({p:.[0].project, untagged:(any(.[]; (.tag // .project) == "경상")), sec:(map(.seconds)|add),
            js:(group_by(.key) | map({k:.[0].key, sec:(map(.seconds)|add), c:length,
                                      t:(.[0]|dtag), ti:(.[0].title | if .=="" then "-" else . end),
                                      ws:(if .[0].recurring
                                          then sort_by(.started) | map({d:(.date|md), c:(.comment | if .=="" then "-" else . end)})
                                          else [] end)})
                | sort_by(-.sec))})
-    | sort_by((.p=="공통·경상"), -.sec)[]
+    | sort_by(.untagged, -.sec)[]
     | (["P", .p, .sec, (.js|length)] | @tsv),
       (.js[] | (["J", .k, .sec, .c, .t, .ti] | @tsv), (.ws[] | ["W", .d, .c] | @tsv)) ),
   ( group_by(.key)  | map({k:.[0].key, st:.[0].status, su:.[0].summary, sec:(map(.seconds)|add), c:length})
     | sort_by(-.sec)[] | ["I", .k, .sec, .c, .st, .su] | @tsv ),
   ( group_by(.date) | map({d:.[0].date, sec:(map(.seconds)|add), c:length})
     | sort_by(.d)[]   | ["D", .d, .sec, .c] | @tsv )
-' "$TMP" 2>/dev/null || true)
+' --arg re "$WP_TAG_RE" "$TMP" 2>/dev/null || true)
 
-issues=(); projs=(); days=(); tot=0; ni=0; nd=0; nw=0
+issues=(); projs=(); days=(); tot=0; ni=0; nd=0; nw=0; unmapped=""; unsafe=0
 while IFS=$'\t' read -r tag a b c d e; do
   case "${tag:-}" in
     T) tot=$(num "$a"); ni=$(num "$b"); nd=$(num "$c"); nw=$(num "$d") ;;
+    U) unmapped="$a" ;;
+    UX) unsafe=$(num "$a") ;;
     I) issues+=("$(printf '  %-18s %-8s (%s건)  %-12s %s' "$a" "$(sec2hm "$b")" "$c" "${d:-?}" "$e")") ;;
     P) projs+=("$(printf '  %s — %s (이슈 %s건)' "$a" "$(sec2hm "$b")" "$c")") ;;
     J) projs+=("$(printf '    %-18s %-8s (%s건)  %s  %s' "$a" "$(sec2hm "$b")" "$c" "$d" "$e")") ;;
@@ -271,8 +289,14 @@ if [ "${nw:-0}" -eq 0 ]; then
 fi
 echo "총합: $(sec2hm "$tot") · 이슈 ${ni}건 · 근무일 ${nd}일 · 워크로그 ${nw}건"
 echo
-echo "[프로젝트별] (시간 내림차순 · 공통·경상은 마지막 · 날짜: 완료=해결일, 진행=~End date, 상시(경상)=워크로그별)"
+echo "[프로젝트별] (시간 내림차순 · 경상은 마지막 · 이름=프로필 표시명(없으면 태그) · 날짜: 완료=해결일, 진행=~End date, 상시(경상)=워크로그별)"
 printf '%s\n' "${projs[@]}"
+if [ -n "$unmapped" ] || [ "$unsafe" -gt 0 ]; then
+  echo
+  [ -n "$unmapped" ] && echo "[표시명 미등록 태그] $unmapped"
+  [ "$unsafe" -gt 0 ] && echo "[표시명 등록 불가 태그] ${unsafe}개 (글자·숫자·. _ - 공백 외 문자 포함 — 태그 그대로 표시)"
+  echo "  (등록 방법: SKILL.md 「프로젝트 표시명」 — set-project-name-stdin + quoted heredoc)"
+fi
 echo
 echo "[이슈별] (시간 내림차순)"
 printf '%s\n' "${issues[@]}"
