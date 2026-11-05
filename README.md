@@ -76,7 +76,7 @@ env 플러그인은 `mccm.json` 파일 하나에 환경 전체를 선언적으�
 | 스킬 | 설명 |
 |------|------|
 | [today](plugins/worklog/skills/today/) | 오늘(또는 지정일) 트랜스크립트 → `prep.sh` 동시 수집(활동·커밋·회의·Jira 후보·당일 워크로그) → 출근·퇴근 예정(또는 총 근무시간) 확인 → 시간대·프로젝트·커밋·prompt 주제 요약 + 30분 슬롯 타임라인 + 근무시간에 맞춘 Jira 워크로그 dry-run/apply(멀티라인 코멘트, 내 담당 이슈에만 — 후보는 내 담당 미완료만, 입력 시 행마다 담당자 검사) · 맞는 활성 티켓이 없는 작업은 `jira-task-create`로 새 티켓 생성 추천 · `11:30예약` 처럼 시각을 주면 그 시각에 실행하도록 예약 |
-| [week](plugins/worklog/skills/week/) | 이번 주(또는 지난주/지정 범위) 내 Jira 워크로그 집계 → 프로젝트별(이슈 제목 `[태그]`) 이슈 시간 + 완료일(해결일)·진행 마감(End date)·경상 이슈는 워크로그별 날짜 표기 + 코멘트 기반 작업 서술을 문서 도구에 붙여넣을 일반 텍스트 주간보고로 출력 (읽기 전용) |
+| [week](plugins/worklog/skills/week/) | 이번 주(또는 지난주/지정 범위) 내 Jira 워크로그 집계 → 프로젝트별(이슈 제목 `[태그]` → 로컬 프로필의 프로젝트 표시명, 태그 없으면 `경상`) `■ 프로젝트` / 번호 항목 / `◦` 세부 형식에 완료일(해결일)·진행 마감(~End date)·경상 워크로그별 날짜를 붙인 작업 서술을 문서 도구에 붙여넣을 일반 텍스트 주간보고로 출력 (Jira 읽기 전용, 시간·이슈키는 본문 제외) |
 | [jira-task-create](plugins/worklog/skills/jira-task-create/) | 세션 작업(커밋·PR·산출물) → 상위 에픽 아래 Jira "작업" 티켓 초안. 에픽이 없으면 최근 담당 티켓의 상위 에픽·프로필 프로젝트 미완료 에픽에서 후보 3개 추천, 참고 티켓 필드 구성 승계, createmeta 사전 확인·중복 확인·영업일 원래 추정치 → **승인 후에만** REST 생성 → 필드 검증 표 |
 | [jira-epic-create](plugins/worklog/skills/jira-epic-create/) | 참고 에픽의 필드 구성(프로젝트·워크 스페이스·참조자·우선순위·레이블·제목 형식) → 새 Jira 에픽 초안. createmeta 사전 확인·같은 주제 에픽 중복 확인·영업일 원래 추정치 → **승인 후에만** REST 생성(`create-epic`: parent 포함·에픽 아닌 유형은 POST 전 거부) → 필드 검증 표. 그 아래 작업은 `jira-task-create`로 이어 생성 |
 
@@ -141,6 +141,15 @@ claude plugin install env@mccm
 cp plugins/worklog/worklog.example.json ~/.config/mccm/worklog.json
 # 이후 identity·examples·report 값을 자신에게 맞게 편집
 ```
+
+**프로젝트 표시명** (`week` 전용): 주간보고의 `■` 블록 이름은 Jira 제목 태그(`[PROJ-A]`) 대신 `report.project_names`(`{"태그": "표시명"}`)에 등록한 이름을 쓴다. `jira_week.sh`가 집계 전에 바꿔 넣고, 등록이 없는 태그는 그대로 두되 SUMMARY에 `[표시명 미등록 태그]`로 알려 준다. 태그가 없는 이슈는 `경상` 블록으로 모인다. 수시로 추가·변경할 수 있다 — 파일을 직접 고치거나 아래 명령을 쓴다(또는 `week` 실행 중에 "PROJ-B는 OOO로 해줘"라고 말하면 스킬이 대신 등록한다).
+
+```bash
+bash plugins/worklog/skills/week/_profile.sh set-project-name PROJ-A "{프로젝트 A 정식 명칭}"
+bash plugins/worklog/skills/week/_profile.sh unset-project-name PROJ-A
+bash plugins/worklog/skills/week/_profile.sh project-names   # 현재 매핑
+```
+명령으로 등록할 때 태그는 글자·숫자·`. _ -`·공백만 1~40자, 표시명은 제어문자 없이 1~80자다(`[R&D]`처럼 특수문자가 든 태그는 파일을 직접 고쳐 등록한다). 기존 파일은 `worklog.json.bak.pn-*`로 백업되고 최근 5개만 남는다. 스킬(모델)은 셸 해석을 피하려고 같은 기능을 `set-project-name-stdin`(quoted heredoc 의 stdin)으로 호출한다.
 
 **설정이 없어도 정상 동작한다.** `_profile.sh`가 존재하지 않는 설정을 rc0으로 처리하고, `today`·`week`는 각 SKILL.md의 기본 규칙으로 그대로 동작한다 — 개인화는 기능이 아니라 표현·문체에만 영향을 준다.
 
