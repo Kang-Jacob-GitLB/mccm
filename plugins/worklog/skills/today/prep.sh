@@ -12,10 +12,10 @@
 #     --since/--until  대상일 내 시간대 한정(로컬 HH:MM).
 #     --issue KEY 그 이슈 상세를 ## ISSUE 섹션에 포함(워크로그 대상 확인용).
 #     --project KEY  jira 프로젝트 키(미지정 시 config 에서 자동 해결).
-#     --max N      섹션당 최대 줄수(기본 60, 토큰 방어).
+#     --max N      섹션당 최대 줄수(기본 60, 토큰 방어). ACTIVITY 만 N×4.
 #     -h|--help
 #
-# 출력 섹션: PROFILE / ISSUE(옵션) / CALENDAR(회의) / ACTIVITY(prompts) / COMMITS /
+# 출력 섹션: PROFILE / ISSUE(옵션) / CALENDAR(회의) / ACTIVITY(prompts) / SOURCES / COMMITS /
 #            JIRA_CANDIDATES(내 담당 미완료만) / WORKLOGS_TODAY.
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -50,6 +50,7 @@ done
 [ -z "$ISSUE" ]   || [[ "$ISSUE"   =~ ^[A-Za-z0-9]+-[0-9]+$ ]] || { echo "잘못된 이슈키: $ISSUE" >&2; exit 2; }
 [ -z "$PROJECT" ] || [[ "$PROJECT" =~ ^[A-Za-z0-9_]+$ ]]       || { echo "잘못된 프로젝트키: $PROJECT" >&2; exit 2; }
 case "$MAX"     in *[!0-9]*|"") MAX=60 ;; esac
+MAX=$(( 10#$MAX ))   # 선행 0(08)을 8진수로 읽지 않게
 
 # 캘린더 조회창에 쓸 UTC 오프셋(±HH:MM).
 # ⚠ TZ_OFF 를 그대로 쓰면 안 된다 — 그건 "대상 존의 오프셋"이 아니라 "strftime 에 더할
@@ -67,7 +68,7 @@ TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
 # ── 동시 수집: 트랜스크립트(느림) ∥ jira 후보 ∥ 당일 워크로그 ∥ 이슈상세 ──
 "$DIR/collect.sh" "$DATE" ${SINCE:+--since "$SINCE"} ${UNTIL:+--until "$UNTIL"} \
-  > "$TMP/act.jsonl" 2>/dev/null &
+  > "$TMP/act.jsonl" 2> "$TMP/act.err" &
 jira_candidates "$PROJECT" > "$TMP/cand.tsv" 2>/dev/null &
 (
   : > "$TMP/wl.tsv"
@@ -159,13 +160,28 @@ esac
 # ACTIVITY: 로컬 HH:MM + cwd basename(역슬래시/슬래시 양쪽 처리) + prompt(평탄화·110자).
 # 시각변환은 awk strftime(epoch+TZ_OFF) — timeline.sh 와 동일(native:OFF0+TZ=IANA, offset:OFF+TZ=UTC).
 printf '\n## ACTIVITY (prompts · 로컬시각)\n'
+# 하네스가 자동으로 넣는 줄(채팅 제목 생성·스킬 본문 주입·컨텍스트 이어붙이기·세션 간
+# 메시지)은 사용자 입력이 아니다. 원격 루트까지 합치면 이런 줄이 --max 상한을 먼저
+# 채워 저녁 활동이 잘려 나가므로 여기서 뺀다.
 jq -r 'select(.event=="prompt")
+       | select((.prompt//"") | test("^(Name this chat from the user|Base directory for this skill:|This session is being continued from a previous conversation|Another Claude session sent a message:)") | not)
        | [.epoch,(.cwd//""),((.prompt//"")|gsub("[\r\n\t]+";" "))] | @tsv' "$TMP/act.jsonl" \
   | awk -F'\t' -v OFF="${TZ_OFF:-0}" '
       { e=$1+OFF; cwd=$2; gsub(/\\/,"/",cwd); n=split(cwd,a,"/"); base=a[n]
         pr=$3; if(length(pr)>110) pr=substr(pr,1,110)
         printf "%s  [%s] %s\n", strftime("%H:%M",e), base, pr }' \
-  | head -n "$MAX"
+  > "$TMP/act.txt"
+# ACTIVITY 는 배분의 근거라 다른 섹션보다 상한을 넉넉히(--max×4) 잡는다. 여러 머신을 합치면
+# 하루 100줄을 넘기 쉽고, 앞에서 자르면 오후·저녁 작업이 조용히 사라진다 — 잘렸으면 표시한다.
+ACT_MAX=$(( MAX * 4 ))
+ACT_N=$(wc -l < "$TMP/act.txt" | tr -d ' ')
+head -n "$ACT_MAX" "$TMP/act.txt"
+[ "$ACT_N" -le "$ACT_MAX" ] || printf '(… %s줄 생략 — 이후 활동 누락. --max 를 늘려 다시 실행할 것)\n' "$(( ACT_N - ACT_MAX ))"
+
+# SOURCES: 어떤 트랜스크립트 루트를 읽었는지. 원격 마운트가 끊겨 조용히 빠지는 것을 막는다.
+printf '\n## SOURCES (트랜스크립트 루트)\n'
+awk -F'\t' '$1=="ROOT"{printf "%s  %s\n",$2,$3} $1=="WARN"{printf "⚠ 미연결 — 이 루트의 활동 누락  %s\n",$2}' \
+  "$TMP/act.err" 2>/dev/null || true
 
 printf '\n## COMMITS\n'
 jq -r 'select(.event=="commit")

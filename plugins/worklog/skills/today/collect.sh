@@ -15,7 +15,13 @@
 #   collect.sh                       # 오늘(KST)
 # 옵션:
 #   --tz <IANA>     날짜 경계 해석 타임존 (기본 Asia/Seoul).
-#   --root <DIR>    트랜스크립트 루트 추가(반복 가능). 미지정 시 자동 탐지.
+#   --root <DIR>    트랜스크립트 루트 추가(반복 가능). 자동 탐지 루트에 더해진다.
+#   추가 루트 파일  ~/.config/mccm/worklog-roots (WORKLOG_ROOTS_FILE env 로 변경) —
+#                   한 줄에 디렉터리 하나, # 주석·빈 줄 무시. 원격 머신 홈을 마운트한
+#                   경로(예: /z/.claude/projects)를 두면 매번 --root 없이 합쳐진다.
+#                   --root·추가 루트 파일의 이벤트는 env "remote" 로 찍힌다.
+#   stderr          읽은 루트는 "ROOT<TAB>env<TAB>dir", 없는(미연결) 추가 루트는
+#                   "WARN<TAB>dir" 로 낸다 — prep.sh 가 SOURCES 섹션으로 옮긴다.
 #   --since <HH:MM> 대상일 내 그 로컬 시각 이후(>=) 이벤트만 출력.
 #   --until <HH:MM> 대상일 내 그 로컬 시각 이전(<) 이벤트만 출력.
 #   -h|--help
@@ -86,9 +92,21 @@ roots_tsv() {
     done < <(wsl.exe -l -q 2>/dev/null | tr -d '\000\r' | sed -e 's/[[:space:]]*$//' -e '/^$/d')
   fi
   for r in ${EXTRA_ROOTS+"${EXTRA_ROOTS[@]}"}; do
-    [ -d "$r" ] && printf '%s\t%s\n' "$THIS_ENV" "$r"
+    if [ -d "$r" ]; then printf '%s\t%s\n' "remote" "$r"
+    else printf 'WARN\t%s\n' "$r" >&2; fi
   done
 }
+
+# 추가 루트 파일(원격 머신 마운트 등). 줄을 경로 문자열로만 쓴다 — 셸로 평가하지 않는다.
+ROOTS_FILE="${WORKLOG_ROOTS_FILE:-$HOME/.config/mccm/worklog-roots}"
+if [ -f "$ROOTS_FILE" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"
+    line="${line#"${line%%[![:space:]]*}"}"; line="${line%"${line##*[![:space:]]}"}"
+    case "$line" in ''|'#'*) continue ;; esac
+    EXTRA_ROOTS+=("$line")
+  done < "$ROOTS_FILE"
+fi
 
 # jq 프로그램(-n 모드): inputs 로 여러 트랜스크립트 파일을 한 번에 읽어
 # prompt/commit/session 이벤트 추출. input_filename 으로 파일경계를 보존한다.
@@ -162,8 +180,12 @@ JQ
 
 TMP="$(mktemp)"; trap 'rm -f "$TMP"' EXIT
 
+SEEN_ROOTS=$'\n'   # 연관배열 대신 문자열 — macOS 기본 bash 3.2 호환
 while IFS=$'\t' read -r env root; do
   [ -n "$root" ] || continue
+  case "$SEEN_ROOTS" in *$'\n'"$root"$'\n'*) continue ;; esac   # 자동 탐지·추가 루트가 겹쳐도 1회만
+  SEEN_ROOTS="$SEEN_ROOTS$root"$'\n'
+  printf 'ROOT\t%s\t%s\n' "$env" "$root" >&2
   # 대상일 자정(로컬) 이후 수정된 파일만 (그 이전 파일엔 그 날 라인이 있을 수 없음).
   # @epoch 로 넘겨 tzdata 부재 환경에서도 경계가 어긋나지 않게 한다.
   # 파일들을 모아 jq 를 루트당 1회만 띄운다 — 파일마다 jq 를 새로 spawn 하면
