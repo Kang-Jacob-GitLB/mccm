@@ -13,11 +13,26 @@ export type PrLine = {
   merge: string
 }
 
+// ---- where-line ----
+export type WhereLine = {
+  // 세션 cwd, 홈은 ~ 로 줄인 표기
+  cwd: string
+  // git 저장소가 아니면 null
+  git: {
+    branch: string
+    // 링크된 워크트리면 그 폴더 이름, 주 체크아웃이면 null
+    worktree: string | null
+    repo: string
+  } | null
+}
+
 declare module 'claude-code' {
   interface PluginState {
     mods: {
       // pr-line
       prLinePrs: Shaped<PrLine[]>
+      // where-line
+      whereLineWhere: WhereLine | null
     }
   }
 }

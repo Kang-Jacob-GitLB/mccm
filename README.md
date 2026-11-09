@@ -76,6 +76,7 @@ Claude Code mod(세션 안에서 도는 TypeScript 훅 모듈) 여러 개를 플
 | mod | 설명 |
 |------|------|
 | [pr-line](plugins/mods/hooks/pr-line/) | 내가 연 열린 PR(최대 5개)의 제목과 CI 상태를 한 줄씩. [Flightdeck](https://github.com/scasella/claude-flightdeck) 패널이 열려 있으면 그 맨 아래 `pull requests` 상자로, 없거나 닫혀 있으면 입력창 위에 표시. `#번호` 노랑, 제목·CI 수는 draft면 회색·아니면 흰색, 줄 끝은 CI 결과(✔ ✘ ◐). `gh pr list --author @me`로 15초마다·턴 끝마다 읽기만 한다 |
+| [where-line](plugins/mods/hooks/where-line/) | 입력창 위에 지금 작업 위치를 한 줄로: `⎇ 브랜치`(파랑) · `🏠 main checkout · 저장소`(노랑) 또는 `🌿 worktree <이름> · 저장소`(초록) · `📁 cwd`(흐림). 주 체크아웃을 노랑으로 띄워 워크트리 규칙을 상기시킨다. 세션 시작·턴 끝·툴 호출 직후에 `git rev-parse`로 다시 읽고 값이 바뀔 때만 다시 그린다 |
 
 ```
 ╭──────────────────────────────────────────────╮
@@ -85,7 +86,7 @@ Claude Code mod(세션 안에서 도는 TypeScript 훅 모듈) 여러 개를 플
 ╰──────────────────────────────────────────────╯
 ```
 
-**사전 요구사항:** Claude Code 2.1.289 이상. pr-line은 `gh`(`gh auth login`)와 `git`. Flightdeck은 선택이다.
+**사전 요구사항:** Claude Code 2.1.289 이상. pr-line은 `gh`(`gh auth login`)와 `git`, where-line은 `git`. Flightdeck은 선택이다.
 
 **mod 추가 규칙:** `hooks/<mod>/index.tsx`에 matcher 있는 훅은 그 mod의 `register`로, matcher 없는 공용 이벤트(`session.start`·`turn.complete` 등)는 함수로 내보내 진입점이 한 번만 걸고 부른다(같은 이벤트를 matcher 없이 두 번 걸면 엔진이 거부한다). 상태 키는 mod 이름을 앞에 붙이고(`prLinePrs`), 타입은 `types/index.d.ts` 한 곳에 둔다.
 
@@ -247,8 +248,10 @@ mccm/
     │   ├── hooks/
     │   │   ├── hooks.json
     │   │   ├── register.tsx         ← 진입점: 각 mod 등록 + 공용 이벤트 한 번만
-    │   │   └── pr-line/
-    │   │       └── index.tsx        ← gh 로 PR 읽기 · Flightdeck 패널/입력창 위 그리기
+    │   │   ├── pr-line/
+    │   │   │   └── index.tsx        ← gh 로 PR 읽기 · Flightdeck 패널/입력창 위 그리기
+    │   │   └── where-line/
+    │   │       └── index.tsx        ← git 으로 브랜치·워크트리·cwd 읽기 · 입력창 위 한 줄
     │   └── types/
     │       └── index.d.ts           ← 모든 mod 의 세션 상태 타입 계약
     └── worklog/
