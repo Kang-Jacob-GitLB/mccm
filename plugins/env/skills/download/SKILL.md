@@ -8,7 +8,6 @@ allowed-tools: Bash, Read, Edit
 
 - mccm.json (gist): !`GIST_ID=$(gh api gists --jq '.[] | select(.files["mccm.json"] != null) | .id' 2>/dev/null | head -1); [ -n "$GIST_ID" ] && gh gist view "$GIST_ID" --filename mccm.json 2>/dev/null || echo "not found — gist에 mccm.json 파일이 없습니다"`
 - settings.json: !`cat "$HOME/.claude/settings.json" 2>/dev/null || echo "not found"`
-- ccstatusline: !`cat "$HOME/.config/ccstatusline/settings.json" 2>/dev/null || echo "not found"`
 - CLAUDE.md: !`f="$HOME/.claude/CLAUDE.md"; [ -f "$f" ] && echo "존재 ($(wc -l < "$f") 줄) — 내용은 전사하지 말고 jq 파이프로 복원" || echo "not found"`
 - worklog.json (gist): !`GIST_ID=$(gh api gists --jq '.[] | select(.files["mccm.json"] != null) | .id' 2>/dev/null | head -1); [ -n "$GIST_ID" ] && gh gist view "$GIST_ID" --filename worklog.json >/dev/null 2>&1 && echo "존재 (내용은 민감할 수 있어 표시하지 않음)" || echo "not found"`
 - jira-task.json (gist): !`GIST_ID=$(gh api gists --jq '.[] | select(.files["mccm.json"] != null) | .id' 2>/dev/null | head -1); [ -n "$GIST_ID" ] && gh gist view "$GIST_ID" --filename jira-task.json >/dev/null 2>&1 && echo "존재 (실명·accountId 가 있어 표시하지 않음)" || echo "not found"`
@@ -57,52 +56,16 @@ mccm.json의 `clis`를 확인한다.
 
 사용자가 거부한 항목은 스킵하고 완료 보고에 "스킵됨"으로 기록한다.
 
-### 4. ccstatusline 설정 복원
+### 4. worklog 프로필 복원
 
-mccm.json에 `ccstatusline.config` 객체가 있으면 위젯 디자인 본체를 `$HOME/.config/ccstatusline/settings.json`에 복원한다. (바이너리 설치는 3단계 `clis`에서, statusLine 연결은 5단계 `settings`에서 처리되므로 여기서는 디자인 본체만 다룬다.)
-
-> **⚠️ 글리프 주의 (필독):** `ccstatusline.config`의 `powerline.separators / startCaps / endCaps` 에는 화면상 **빈 칸으로 보이는 Nerd Font PUA 글리프**(U+E0B0~U+E0BF 등)가 들어 있다. Read·Edit·수기 전사로 다루면 글리프가 보이지 않아 **빈 문자열로 소실**된다.
-> - 이 파일은 **반드시 아래 `jq` 파이프로 전체 덮어쓰기**한다. Read·Edit·수기 전사 금지.
-> - "한 필드만 다른 것 같아도" 부분 Edit 하지 말고 **무조건 전체를 `jq`로 다시 쓴다** (gist가 이 파일의 단일 진실원).
-> - 동일/다름 판정도 눈이 아니라 **바이트로** 한다(아래 `diff`).
-
-- 로컬 파일이 **없으면**: `mkdir -p`로 디렉토리를 만든 뒤 바로 기록한다.
-- 로컬 파일이 mccm.json `config`와 **동일**하면(아래 `diff`가 무출력): 스킵.
-- **다르면(충돌)**: 사용자에게 차이를 보여주고 물어본다:
-  - **(1) 취소** (기존 로컬 설정 유지) / **(2) 대치** (gist 설정으로 교체)
-  - 사용자 선택에 따라 적용한다.
-
-```bash
-GIST_ID=<선택된 gist id>
-DST="$HOME/.config/ccstatusline/settings.json"
-
-# 동일/다름 판정 (바이트 비교 — 보이지 않는 글리프 차이까지 잡힘)
-diff <(gh gist view "$GIST_ID" --filename mccm.json | jq -S '.ccstatusline.config') \
-     <(jq -S . "$DST" 2>/dev/null) >/dev/null \
-  && { echo "동일 → 스킵"; } \
-  || echo "다름 → (사용자 확인 후) 대치"
-
-# 대치(또는 신규): 전체 덮어쓰기로만 기록 — 절대 전사/Edit 하지 않는다 (글리프 보존)
-mkdir -p "$HOME/.config/ccstatusline"
-gh gist view "$GIST_ID" --filename mccm.json | jq '.ccstatusline.config' > "$DST"
-
-# 기록 후 검증: 로컬이 gist와 바이트 동일한지 재확인 (글리프 포함)
-diff <(gh gist view "$GIST_ID" --filename mccm.json | jq -S '.ccstatusline.config') \
-     <(jq -S . "$DST") >/dev/null \
-  && echo "검증 OK (글리프 포함 일치)" \
-  || echo "⚠️ 불일치 — jq 파이프로 재시도(전사 금지)"
-```
-
-### 4-b. worklog 프로필 복원
-
-gist에 아래 형제 파일이 있으면 같은 이름으로 `$HOME/.config/mccm/`에 복원한다. (업로드 쪽 2-b 참고 — 이 파일들은 mccm.json 안이 아니라 gist의 별도 파일이다.) 두 파일은 같은 함수(`restore_profile`)로 하나씩 독립 처리되며, 아래 규칙은 파일마다 적용된다.
+gist에 아래 형제 파일이 있으면 같은 이름으로 `$HOME/.config/mccm/`에 복원한다. (업로드 쪽 2단계 참고 — 이 파일들은 mccm.json 안이 아니라 gist의 별도 파일이다.) 두 파일은 같은 함수(`restore_profile`)로 하나씩 독립 처리되며, 아래 규칙은 파일마다 적용된다.
 
 | gist 형제 파일 | 로컬 파일 | 승인 변수 |
 |---|---|---|
 | `worklog.json` | `$HOME/.config/mccm/worklog.json` | `WL_APPROVED` |
 | `jira-task.json` | `$HOME/.config/mccm/jira-task.json` | `JT_APPROVED` |
 
-> **⚠️ 전사 금지:** `ccstatusline.config`·`claudeMd`와 같은 이유다. **`jq` 파이프로 전체 덮어쓰기**만 한다. 부분 Edit 금지 — gist가 단일 진실원이다.
+> **⚠️ 전사 금지:** `claudeMd`와 같은 이유다. 모델이 읽어 옮겨 적으면 내용이 어긋나거나 잘린다. **`jq` 파이프로 전체 덮어쓰기**만 한다. 부분 Edit 금지 — gist가 단일 진실원이다.
 
 - gist에 해당 파일 자체가 **없으면**: "건너뜀" — 로컬 프로필을 절대 건드리지 않는다. (10단계 `claudeMd` null 가드와 같은 실패 방어다.)
 - gist 내용을 **임시 파일에 한 번만** 받아 JSON 객체인지 검증한 뒤 그 임시 파일로만 판정·기록한다 — `gh gist view`를 여러 번 따로 호출하면 판정과 기록 사이에 gist가 바뀔 수 있다(TOCTOU).
@@ -278,8 +241,6 @@ mccm.json의 `settings`를 settings.json과 비교한다. 변수 치환 적용 �
 - 선택지 제시: **(1) 취소** (기존 유지) / **(2) 대치** (mccm.json 값으로 교체)
 - 사용자 선택에 따라 적용
 
-> `statusLine` 블록이 mccm.json에 있으면 settings.json에 반영한다. 단 이 블록은 ccstatusline 바이너리가 PATH에 있어야 정상 동작하므로, 3단계에서 ccstatusline 설치를 건너뛴/거부한 경우 statusLine 적용도 보류하고 사용자에게 알린다.
-
 ### 6. mcpServers
 
 mccm.json의 `mcpServers`를 settings.json의 `mcpServers`와 비교한다. 변수 치환 적용.
@@ -326,7 +287,7 @@ Read 도구로 파일을 읽고, 변경 사항을 Edit 도구로 적용한다.
 
 mccm.json에 `claudeMd` 문자열이 있으면 `$HOME/.claude/CLAUDE.md`에 복원한다.
 
-> **⚠️ 전사 금지:** `ccstatusline.config`와 같은 이유다. 모델이 읽어 옮겨 적으면 줄바꿈·들여쓰기가 어긋나거나 긴 내용이 잘린다. **`jq -r` 파이프로 전체 덮어쓰기**만 한다. 부분 Edit 금지 — gist가 단일 진실원이다.
+> **⚠️ 전사 금지:** 모델이 읽어 옮겨 적으면 줄바꿈·들여쓰기가 어긋나거나 긴 내용이 잘린다. **`jq -r` 파이프로 전체 덮어쓰기**만 한다. 부분 Edit 금지 — gist가 단일 진실원이다.
 
 - 로컬 파일이 **없으면**: 바로 기록한다.
 - **동일**하면(아래 `diff`가 무출력): 스킵.
@@ -375,7 +336,6 @@ rm -f /tmp/mccm.json
 
 - 등록/업데이트된 마켓플레이스
 - 설치/업데이트된 플러그인
-- 복원된 ccstatusline 설정 (라인/항목 수, 충돌 해결 결과)
 - 병합된 settings 항목
 - 추가된 mcpServers
 - 추가된 hooks

@@ -1,7 +1,7 @@
 {
   "name": "env",
-  "version": "2.5.0",
-  "description": "Claude Code 환경 동기화 — Gist 기반 upload/download로 플러그인, MCP, hooks, settings, ccstatusline, CLAUDE.md, worklog 프로필(worklog·jira-task)을 여러 PC에서 동일 유지",
+  "version": "3.0.0",
+  "description": "Claude Code 환경 동기화 — Gist 기반 upload/download로 플러그인, MCP, hooks, settings, CLAUDE.md, worklog 프로필(worklog·jira-task)을 여러 PC에서 동일 유지",
   "author": {
     "name": "Kang-Jacob-GitLB",
     "url": "https://github.com/Kang-Jacob-GitLB"
@@ -15,9 +15,7 @@
     "plugin-manager",
     "mcp",
     "hooks",
-    "settings",
-    "ccstatusline",
-    "statusline"
+    "settings"
   ],
   "skills": "./skills/"
 }
