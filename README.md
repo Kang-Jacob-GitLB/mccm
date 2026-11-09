@@ -69,6 +69,26 @@ env 플러그인은 `mccm.json` 파일 하나에 환경 전체를 선언적으�
 | T2 `opus` | synthesizer | 다중 결과 합성·최종 판정 |
 | T2 `opus` | debugger | 증상→원인 동적 진단 (유일한 T2 쓰기 권한) |
 
+### mods — Claude Code mod 모음
+
+Claude Code mod(세션 안에서 도는 TypeScript 훅 모듈) 여러 개를 플러그인 하나에 담는다. 플러그인 하나는 hooks 모듈을 하나만 가질 수 있어, 진입점 `hooks/register.tsx`가 각 mod(`hooks/<mod>/index.tsx`)를 불러 등록한다. 특정 mod를 끄려면 `/plugin configure mods@mccm`의 `disabled`에 이름을 쉼표로 적는다.
+
+| mod | 설명 |
+|------|------|
+| [pr-line](plugins/mods/hooks/pr-line/) | 내가 연 열린 PR(최대 5개)의 제목과 CI 상태를 한 줄씩. [Flightdeck](https://github.com/scasella/claude-flightdeck) 패널이 열려 있으면 그 맨 아래 `pull requests` 상자로, 없거나 닫혀 있으면 입력창 위에 표시. `#번호` 노랑, 제목·CI 수는 draft면 회색·아니면 흰색, 줄 끝은 CI 결과(✔ ✘ ◐). `gh pr list --author @me`로 15초마다·턴 끝마다 읽기만 한다 |
+
+```
+╭──────────────────────────────────────────────╮
+│ pull requests · 2 open                       │
+│ #43 feat: WDSW2D2510-700 라이브 화면…  ✔ 6/6 │
+│ #42 test: 시험용 PR (draft)            ✘ 4/6 │
+╰──────────────────────────────────────────────╯
+```
+
+**사전 요구사항:** Claude Code 2.1.289 이상. pr-line은 `gh`(`gh auth login`)와 `git`. Flightdeck은 선택이다.
+
+**mod 추가 규칙:** `hooks/<mod>/index.tsx`에 matcher 있는 훅은 그 mod의 `register`로, matcher 없는 공용 이벤트(`session.start`·`turn.complete` 등)는 함수로 내보내 진입점이 한 번만 걸고 부른다(같은 이벤트를 matcher 없이 두 번 걸면 엔진이 거부한다). 상태 키는 mod 이름을 앞에 붙이고(`prLinePrs`), 타입은 `types/index.d.ts` 한 곳에 둔다.
+
 ### worklog — 일일/주간 워크로그 · Jira 작업 티켓
 
 `today`는 Claude Code가 세션마다 남기는 트랜스크립트(`~/.claude/projects/<cwd-slug>/<session-id>.jsonl`)를 직접 파싱해 하루치 작업을 정리한다. 별도 hook 설치가 필요 없어 새 머신에서도 셋업 0으로 동작한다. 데이터 수집은 `prep.sh` 한 번 호출로 활동·커밋·Jira 후보·당일 워크로그를 **동시 수집**해 압축 리포트로 내며(트랜스크립트 스캔과 Jira 조회를 병렬 실행, 시각변환·경로 basename·프로젝트 해결을 스크립트가 처리해 빠르고 토큰을 아낀다), 하루를 30분 슬롯 타임라인으로 시각화한다. 선택적으로 `jira` CLI로 워크로그 입력 후보를 추정·dry-run 미리보기·실제 입력까지 반자동화한다(30분 반올림, 같은 날 기존 워크로그·점심시간 회피, 멀티라인 코멘트). 주간보고가 필요하면 `week`가 이번 주(또는 지난주) 내 Jira 워크로그를 집계해 문서 도구 등에 붙여넣을 주간보고 텍스트를 만든다(읽기 전용).
@@ -221,6 +241,16 @@ mccm/
     │       │       └── components.md           ← 그림 고르기 표·도식 좌표 골격·보조 카드·인라인 아이콘 세트
     │       └── meta-prompting/
     │           └── SKILL.md
+    ├── mods/                        ← Claude Code mod 모음 (skills 아님)
+    │   ├── .claude-plugin/
+    │   │   └── plugin.json          ← userConfig.disabled: 끌 mod 이름
+    │   ├── hooks/
+    │   │   ├── hooks.json
+    │   │   ├── register.tsx         ← 진입점: 각 mod 등록 + 공용 이벤트 한 번만
+    │   │   └── pr-line/
+    │   │       └── index.tsx        ← gh 로 PR 읽기 · Flightdeck 패널/입력창 위 그리기
+    │   └── types/
+    │       └── index.d.ts           ← 모든 mod 의 세션 상태 타입 계약
     └── worklog/
         ├── .claude-plugin/
         │   └── plugin.json
