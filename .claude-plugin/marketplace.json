@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "개인용 Claude Code 플러그인 마켓플레이스",
-    "version": "6.2.0"
+    "version": "6.3.0"
   },
   "plugins": [
     {
@@ -23,6 +23,11 @@
       "name": "worklog",
       "source": "./plugins/worklog",
       "description": "Claude Code 트랜스크립트·Jira 워크로그 기반 워크로그 도구. today: prep.sh 로 활동(로컬·WSL·worklog-roots 원격 마운트 루트)·커밋·회의(gws)·Jira 후보·당일 워크로그를 동시 수집(병렬·압축) → 출근·퇴근 예정(또는 총 근무시간) 확인 → 30분 슬롯 타임라인 + jira CLI 워크로그 입력(dry-run/추정매핑/근무시간 맞춤 배분/30분 반올림/겹침·점심·회의 회피/멀티라인 코멘트, 맞는 티켓 없으면 새 티켓 생성 추천). week: 이번 주 Jira 워크로그를 프로젝트 표시명(로컬 프로필에 수시 등록, 태그 없으면 경상)별로 집계 → ■ 프로젝트·번호 항목·◦ 세부 형식의 주간보고 텍스트(완료일·진행 ~End date 표기, Jira 읽기 전용). jira-task-create: 세션 작업을 요약해 상위 에픽(미지정 시 후보 3개 추천) 아래 Jira 작업 티켓 초안 → createmeta·중복 확인 → 승인 후에만 REST 생성 → 필드 검증. jira-epic-create: 참고 에픽의 필드 구성(워크 스페이스·참조자·제목 형식)을 따라 새 에픽 초안 → createmeta·중복 확인 → 승인 후에만 REST 생성(parent·에픽 유형 사전 검사) → 필드 검증, 하위 작업은 jira-task-create 로 이어 생성. hook 불필요."
+    },
+    {
+      "name": "mods",
+      "source": "./plugins/mods",
+      "description": "Claude Code mod 모음 — 세션 안에서 도는 TypeScript 훅 모듈 여러 개를 한 플러그인에(설정 disabled 로 mod 별 끄기). pr-line: 내가 연 열린 PR(최대 5개)의 제목과 CI 상태를 한 줄씩, Flightdeck 패널 맨 아래 \"pull requests\" 상자(없거나 닫혀 있으면 입력창 위). gh 로 15초마다 읽기만 한다"
     }
   ]
 }
