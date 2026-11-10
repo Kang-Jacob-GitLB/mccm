@@ -8,7 +8,7 @@ import { pickGitPr, remember } from './session-pr'
 type BandEvent = Parameters<EngineInterface['ui']['resolve']>[0]
 
 // 입력창 위에 지금 어디서 작업 중인지 한 줄로 보여 준다.
-//   📦 저장소  ·  ⎇ 브랜치  ·  🏠 main checkout  |  🌿 <워크트리 이름>  ·  📁 cwd  ·  #52
+//   📦 저장소  ·  ⎇ 브랜치  ·  🏠 main(주 체크아웃)  |  🌿 <워크트리 이름>  ·  📁 cwd  ·  #52
 // #52 는 현재 세션의 PR(이 세션에서 만들거나 머지·코멘트·수정한 PR, 최근 것이 앞) — 노랑.
 // 주 체크아웃은 노랑(워크트리에서 작업하라는 규칙을 상기), 워크트리는 초록.
 // 세션 시작·턴 끝·툴 호출 직후에 git 으로 다시 읽고, 값이 바뀔 때만 다시 그린다.
@@ -90,7 +90,7 @@ export async function abovePrompt($: EngineInterface, e: BandEvent): Promise<Ren
               <Text color="suggestion" bold>{`${ICON.branch} ${w.git.branch}`}</Text>
               {sep}
               {w.git.worktree === null ? (
-                <Text color="warning">{`${ICON.home} main checkout`}</Text>
+                <Text color="warning">{`${ICON.home} main`}</Text>
               ) : (
                 <Text color="success">{`${ICON.tree} ${w.git.worktree}`}</Text>
               )}
