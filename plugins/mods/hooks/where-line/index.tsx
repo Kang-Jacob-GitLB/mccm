@@ -1,13 +1,15 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, RenderNode } from 'claude-code'
 
-import type { WhereLine } from '../../types'
+import type { SessionPr, WhereLine } from '../../types'
 import { norm, parseRevParse } from './parse'
+import { pickGitPr, remember } from './session-pr'
 
 type BandEvent = Parameters<EngineInterface['ui']['resolve']>[0]
 
 // 입력창 위에 지금 어디서 작업 중인지 한 줄로 보여 준다.
-//   ⎇ 브랜치  ·  🏠 main checkout · 저장소  |  🌿 worktree <이름> · 저장소  ·  📁 cwd
+//   ⎇ 브랜치 #52  ·  🏠 main checkout · 저장소  |  🌿 worktree <이름> · 저장소  ·  📁 cwd
+// #52 는 현재 세션의 PR(이 세션에서 만들거나 머지·코멘트·수정한 PR, 최근 것이 앞) — 노랑.
 // 주 체크아웃은 노랑(워크트리에서 작업하라는 규칙을 상기), 워크트리는 초록.
 // 세션 시작·턴 끝·툴 호출 직후에 git 으로 다시 읽고, 값이 바뀔 때만 다시 그린다.
 
@@ -15,6 +17,8 @@ const where = atom({ plugin: 'mods', key: 'whereLineWhere' } as const, null)
 // version-tag 가 세션 시작에 써 두는 Claude Code 버전. 줄 맨 오른쪽에 그린다(version-tag 를 끄면 null).
 // 검증기가 상태 키를 정적으로 읽으므로 import 하지 않고 같은 키로 이 파일에서 다시 만든다.
 const version = atom({ plugin: 'mods', key: 'versionTagVersion' } as const, null)
+// 현재 세션의 PR. $.state 라 리로드돼도 세션 동안 남는다.
+const sessionPrs = atom({ plugin: 'mods', key: 'whereLineSessionPrs' } as const, [] as SessionPr[])
 
 // Windows 에서 실행 파일을 현재 폴더(열어 둔 저장소)에서 먼저 찾지 않게 한다.
 const RUN_INIT = { env: { NoDefaultCurrentDirectoryInExePath: '1' }, timeoutMs: 5_000 }
@@ -52,8 +56,12 @@ export async function turnComplete($: EngineInterface) {
 }
 
 // 툴 호출 직후 — 턴 도중 EnterWorktree·git switch 를 바로 반영. 툴 결과를 붙잡지 않게 기다리지 않는다.
-export function toolCallDone($: EngineInterface) {
+// Bash·PowerShell 결과에 PR 동작(생성·머지·코멘트·수정 …)이 실려 있으면 현재 세션의 PR 로 기억한다.
+export function toolCallDone($: EngineInterface, tool: string, result: unknown) {
   void refresh($)
+  if (tool !== 'Bash' && tool !== 'PowerShell') return
+  const pr = pickGitPr(result)
+  if (pr) void update($, sessionPrs, list => remember(list ?? [], pr)).catch(() => {})
 }
 
 // 입력창 위 band 에 그릴 한 줄. band 훅은 mods 진입점(register.tsx)이 하나로 걸고
@@ -61,6 +69,7 @@ export function toolCallDone($: EngineInterface) {
 export async function abovePrompt($: EngineInterface, e: BandEvent): Promise<RenderNode | null> {
     const w = await read($, where)
     const ver = await read($, version)
+    const prs = await read($, sessionPrs)
     if (w === null) return null
 
     const { Box, Text } = $.ui.resolve(e)
@@ -74,6 +83,8 @@ export async function abovePrompt($: EngineInterface, e: BandEvent): Promise<Ren
           ) : (
             <Box>
               <Text color="suggestion" bold>{`${ICON.branch} ${w.git.branch}`}</Text>
+              {/* 현재 세션의 PR, 노랑 */}
+              {prs.length > 0 && <Text color="yellow">{` ${prs.map(p => `#${p.number}`).join(' ')}`}</Text>}
               {sep}
               {w.git.worktree === null ? (
                 <Text color="warning">{`${ICON.home} main checkout · ${w.git.repo}`}</Text>

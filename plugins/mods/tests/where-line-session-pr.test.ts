@@ -1,15 +1,10 @@
-// pr-line 의 현재 세션 PR 헬퍼 테스트. 실행: claude plugin test plugins/mods
+// where-line 의 현재 세션 PR 헬퍼 테스트. 실행: claude plugin test plugins/mods
 import { describe, expect, test } from 'claude-code/testing'
 
-import type { PrLine } from '../types'
-import { combine, pickGitPr, remember } from '../hooks/pr-line/session'
+import { pickGitPr, remember } from '../hooks/where-line/session-pr'
 
 const URL_A = 'https://github.com/o/r/pull/12'
 const URL_B = 'https://github.com/o/r/pull/13'
-
-function line(number: number, url: string, state = 'OPEN'): PrLine {
-  return { number, title: `t${number}`, branch: 'b', isDraft: false, pass: 0, fail: 0, pending: 0, current: '', merge: 'CLEAN', url, state, session: false }
-}
 
 describe('pickGitPr', () => {
   test('gitOperation.pr 의 번호와 URL 을 꺼낸다', () => {
@@ -39,12 +34,5 @@ describe('remember', () => {
     const list = remember([{ number: 12, url: null }, { number: 13, url: URL_B }], { number: 12, url: URL_A })
     expect(list).toEqual([{ number: 12, url: URL_A }, { number: 13, url: URL_B }])
     expect(remember(list, { number: 13, url: null })).toEqual([{ number: 13, url: URL_B }, { number: 12, url: URL_A }])
-  })
-})
-
-describe('combine', () => {
-  test('세션 PR 이 맨 앞, 겹치는 열린 PR 은 한 번만', () => {
-    const out = combine([line(13, URL_B, 'MERGED'), line(12, URL_A)], [line(12, URL_A), line(20, 'https://github.com/o/r/pull/20')])
-    expect(out.map(p => [p.number, p.session])).toEqual([[13, true], [12, true], [20, false]])
   })
 })

@@ -4,7 +4,6 @@ import {
   abovePrompt as prLineBand,
   register as prLineRegister,
   sessionStart as prLineStart,
-  toolCallDone as prLineTool,
   turnComplete as prLineTurn,
 } from './pr-line/index'
 import {
@@ -73,11 +72,10 @@ export const register: Register = (on, options) => {
   })
 
   // 툴 호출은 그대로 통과시키고, 끝난 뒤에만 각 mod 에 알린다. 실패해도 툴 호출을 막지 않는다.
-  if (prLineOn || whereLineOn) {
+  if (whereLineOn) {
     on('tool.call', async ($, e, next) => {
       const r = await next(e)
-      if (whereLineOn) whereLineTool($)
-      if (prLineOn) void prLineTool($, e.tool, r.result).catch(() => {})
+      whereLineTool($, e.tool, r.result)
       return r
     }).catch(($, e, next) => next(e))
   }
