@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "개인용 Claude Code 플러그인 마켓플레이스",
-    "version": "7.4.1"
+    "version": "7.5.0"
   },
   "plugins": [
     {
@@ -27,7 +27,7 @@
     {
       "name": "mods",
       "source": "./plugins/mods",
-      "description": "Claude Code mod 모음 — 세션 안에서 도는 TypeScript 훅 모듈 여러 개를 한 플러그인에(설정 disabled 로 mod 별 끄기). pr-line: 내가 연 열린 PR(최대 5개)의 제목과 CI 상태를 한 줄씩, Flightdeck 패널 맨 아래 \"pull requests\" 상자(없거나 닫혀 있으면 입력창 위). gh 로 15초마다 읽기만 한다. where-line: 입력창 위에 현재 브랜치·그 브랜치의 열린 PR(노란 #번호, gh pr view 30초 캐시, 머지·닫힘이면 숨김)·워크트리(주 체크아웃 노랑·워크트리 초록)·cwd 한 줄. version-tag: where-line 줄 맨 오른쪽에 Claude Code 버전"
+      "description": "Claude Code mod 모음 — 세션 안에서 도는 TypeScript 훅 모듈 여러 개를 한 플러그인에(설정 disabled 로 mod 별 끄기). pr-line: 내가 연 열린 PR(최대 5개)의 제목과 CI 상태를 한 줄씩, Flightdeck 패널 맨 아래 \"pull requests\" 상자(없거나 닫혀 있으면 입력창 위). gh 로 15초마다 읽기만 한다. action-line: PR 이 아닌 GitHub Actions 실행(release·nightly·push 등)을 workflow 마다 최신 하나씩, Flightdeck 패널의 pull requests 상자 아래 \"actions\" 상자(없거나 닫혀 있으면 입력창 위). gh run list 로 30초마다 읽기만 한다. where-line: 입력창 위에 현재 브랜치·그 브랜치의 열린 PR(노란 #번호, gh pr view 30초 캐시, 머지·닫힘이면 숨김)·워크트리(주 체크아웃 노랑·워크트리 초록)·cwd 한 줄. version-tag: where-line 줄 맨 오른쪽에 Claude Code 버전"
     }
   ]
 }

@@ -76,6 +76,7 @@ Claude Code mod(세션 안에서 도는 TypeScript 훅 모듈) 여러 개를 플
 | mod | 설명 |
 |------|------|
 | [pr-line](plugins/mods/hooks/pr-line/) | 내가 연 열린 PR(최대 5개)의 제목과 CI 상태를 한 줄씩. [Flightdeck](https://github.com/scasella/claude-flightdeck) 패널이 열려 있으면 그 맨 아래 `pull requests` 상자로, 없거나 닫혀 있으면 입력창 위에 표시. `#번호` 노랑, 제목·CI 수는 draft면 회색·아니면 흰색, 줄 끝은 CI 결과(✔ ✘ ◐). `gh pr list --author @me`로 15초마다·턴 끝마다 읽기만 한다 |
+| [action-line](plugins/mods/hooks/action-line/) | 현재 저장소의 GitHub Actions 실행 중 PR이 아닌 것(release·nightly·push·schedule·수동 실행 등)을 workflow마다 가장 최근 것 하나씩(최대 5개), 최근 순으로. Flightdeck 패널이 열려 있으면 pr-line의 `pull requests` 상자 바로 아래 `actions` 상자로, 없거나 닫혀 있으면 입력창 위에 표시. 한 줄은 workflow 이름(흰색)·브랜치/태그·이벤트(회색)·상태(✔ 성공 / ✘ 실패·시간 초과 / ◐ 진행 중 / ◌ 대기 / ⊘ 취소). PR의 CI(`pull_request*` 이벤트)는 pr-line 몫이라 뺀다. `gh run list --limit 100`으로 30초마다·턴 끝마다 읽기만 한다 |
 | [where-line](plugins/mods/hooks/where-line/) | 입력창 위에 지금 작업 위치를 한 줄로: `📦 저장소`(📦와 비슷한 황갈색, 맨 앞) · `⎇ 브랜치`(파랑) · `🏠 main`(노랑, 주 체크아웃) 또는 `🌿 <워크트리 이름>`(초록) · `📁 cwd`(흐림) · 현재 브랜치의 PR `#52`(노랑, draft면 흐리게 — 열린 PR일 때만, 머지·닫힘·PR 없음이면 표시 안 함. 저장소의 모든 PR은 pr-line이 보여 준다). 주 체크아웃을 노랑으로 띄워 워크트리 규칙을 상기시킨다. 세션 시작·턴 끝·툴 호출 직후에 `git rev-parse`로 다시 읽고 값이 바뀔 때만 다시 그린다. PR은 인자 없는 `gh pr view`로 읽어 (toplevel, 브랜치) 단위로 30초 캐시하고, 브랜치·워크트리가 바뀌거나 Bash·PowerShell 결과에 PR 동작(`gitOperation.pr` — 생성·머지 등)이 실리면 바로 다시 읽는다. detached HEAD·git 아님이면 조회하지 않는다 |
 | [version-tag](plugins/mods/hooks/version-tag/) | where-line 줄 맨 오른쪽에 Claude Code 버전(`v2.1.319`, Claude 주황 — 테마 색 `claude`)을 붙인다. 세션 시작에 `$.session.version()`으로 한 번 읽어 두고, 그리는 것은 where-line이 한다(where-line을 끄면 버전도 안 보인다) |
 
@@ -87,7 +88,7 @@ Claude Code mod(세션 안에서 도는 TypeScript 훅 모듈) 여러 개를 플
 ╰──────────────────────────────────────────────╯
 ```
 
-**사전 요구사항:** Claude Code 2.1.289 이상. pr-line은 `gh`(`gh auth login`)와 `git`, where-line은 `git`과 `gh`(PR 표시용, 없으면 PR만 빠진다). Flightdeck은 선택이다.
+**사전 요구사항:** Claude Code 2.1.289 이상. pr-line은 `gh`(`gh auth login`)와 `git`, action-line은 `gh`(`gh auth login`), where-line은 `git`과 `gh`(PR 표시용, 없으면 PR만 빠진다). Flightdeck은 선택이다.
 
 **mod 추가 규칙:** `hooks/<mod>/index.tsx`에 matcher 있는 훅은 그 mod의 `register`로, matcher 없는 공용 이벤트(`session.start`·`turn.complete` 등)는 함수로 내보내 진입점이 한 번만 걸고 부른다(같은 이벤트를 matcher 없이 두 번 걸면 엔진이 거부한다). 상태 키는 mod 이름을 앞에 붙이고(`prLinePrs`), 타입은 `types/index.d.ts` 한 곳에 둔다.
 
@@ -248,9 +249,15 @@ mccm/
     │   │   └── plugin.json          ← userConfig.disabled: 끌 mod 이름
     │   ├── hooks/
     │   │   ├── hooks.json
-    │   │   ├── register.tsx         ← 진입점: 각 mod 등록 + 공용 이벤트·입력창 위 band 한 번만
+    │   │   ├── register.tsx         ← 진입점: 각 mod 등록 + 공용 이벤트·Flightdeck 패널·입력창 위 band 한 번만
+    │   │   ├── shared/
+    │   │   │   ├── pane.ts          ← Flightdeck 패널 부착 상태(pr-line·action-line 공용)
+    │   │   │   └── clean.ts         ← GitHub 글자의 제어·방향 문자 제거
     │   │   ├── pr-line/
-    │   │   │   └── index.tsx        ← gh 로 PR 읽기 · Flightdeck 패널/입력창 위 그리기
+    │   │   │   └── index.tsx        ← gh 로 PR 읽기 · 패널 상자/입력창 위 줄
+    │   │   ├── action-line/
+    │   │   │   ├── index.tsx        ← gh run list 읽기 · 패널 상자(PR 상자 아래)/입력창 위 줄
+    │   │   │   └── runs.ts          ← 실행 목록 판정: PR 이벤트 제외·workflow 별 최신·상태 기호(순수 함수)
     │   │   ├── where-line/
     │   │   │   ├── index.tsx        ← git 으로 브랜치·워크트리·cwd, gh 로 브랜치 PR 읽기 · 입력창 위 한 줄
     │   │   │   ├── parse.ts         ← git rev-parse 출력 파서(순수 함수, git < 2.31 호환)
@@ -258,7 +265,9 @@ mccm/
     │   │   └── version-tag/
     │   │       └── index.tsx        ← Claude Code 버전 읽기 · where-line 줄 맨 오른쪽에 표시
     │   ├── tests/
-    │   │   ├── where-line.test.ts   ← parse.ts 테스트 (claude plugin test plugins/mods)
+    │   │   ├── action-line.test.ts  ← runs.ts 테스트 (claude plugin test plugins/mods)
+    │   │   ├── pane.test.tsx        ← Flightdeck 패널에 PR·actions 상자가 순서대로 붙는지 그려 보기
+    │   │   ├── where-line.test.ts   ← parse.ts 테스트
     │   │   └── where-line-branch-pr.test.ts ← branch-pr.ts·PR 키 테스트
     │   └── types/
     │       └── index.d.ts           ← 모든 mod 의 세션 상태 타입 계약

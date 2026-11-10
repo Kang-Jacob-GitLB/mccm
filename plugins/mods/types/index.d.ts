@@ -13,6 +13,20 @@ export type PrLine = {
   merge: string
 }
 
+// ---- action-line ----
+// PR 이 아닌 GitHub Actions 실행 하나(workflow 마다 최신 것)
+export type ActionRun = {
+  id: number
+  workflow: string
+  branch: string
+  // push, schedule, workflow_dispatch, release …
+  event: string
+  // queued, in_progress, completed … (소문자)
+  status: string
+  // success, failure, cancelled … (끝나기 전엔 빈 문자열)
+  conclusion: string
+}
+
 // ---- where-line ----
 export type WhereLine = {
   // 세션 cwd, 홈은 ~ 로 줄인 표기
@@ -44,6 +58,8 @@ declare module 'claude-code' {
     mods: {
       // pr-line
       prLinePrs: Shaped<PrLine[]>
+      // action-line: workflow 마다 최신 실행, 최근 순(최대 5개)
+      actionLineRuns: Shaped<ActionRun[]>
       // where-line
       whereLineWhere: WhereLine | null
       // 현재 브랜치의 PR. git 아님·detached HEAD 면 null
