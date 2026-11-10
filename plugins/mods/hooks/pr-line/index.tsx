@@ -234,19 +234,16 @@ export const register: Register = on => {
       </Box>
     )
   })
+}
 
-  // 2) Flightdeck 패널에 붙어 있지 않을 때만 입력창 위에 보여 준다.
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const list = await read($, prs)
-    const below = await next(e)
-    if (list.length === 0 || e.props.hasSurvey) return below
-    if (paneShown) return below
-    const { Box } = $.ui.resolve(e)
-    return (
-      <Box flexDirection="column">
-        {below}
-        {list.map(p => line($, e, p))}
-      </Box>
-    )
-  })
+// 2) Flightdeck 패널에 붙어 있지 않을 때만 입력창 위 band 에 PR 한 줄씩 보여 준다.
+// band 훅은 mods 진입점(register.tsx)이 하나로 걸고 각 mod 의 줄을 모은다 — 그릴 것이 없으면 null.
+export async function abovePrompt(
+  $: EngineInterface,
+  e: Parameters<EngineInterface['ui']['resolve']>[0],
+): Promise<RenderNode | null> {
+  const list = await read($, prs)
+  if (list.length === 0 || paneShown) return null
+  const { Box } = $.ui.resolve(e)
+  return <Box flexDirection="column">{list.map(p => line($, e, p))}</Box>
 }

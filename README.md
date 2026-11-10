@@ -248,7 +248,7 @@ mccm/
     │   │   └── plugin.json          ← userConfig.disabled: 끌 mod 이름
     │   ├── hooks/
     │   │   ├── hooks.json
-    │   │   ├── register.tsx         ← 진입점: 각 mod 등록 + 공용 이벤트 한 번만
+    │   │   ├── register.tsx         ← 진입점: 각 mod 등록 + 공용 이벤트·입력창 위 band 한 번만
     │   │   ├── pr-line/
     │   │   │   └── index.tsx        ← gh 로 PR 읽기 · Flightdeck 패널/입력창 위 그리기
     │   │   ├── where-line/

@@ -1,8 +1,13 @@
 import type { Register } from 'claude-code'
 
-import { register as prLineRegister, sessionStart as prLineStart, turnComplete as prLineTurn } from './pr-line/index'
 import {
-  register as whereLineRegister,
+  abovePrompt as prLineBand,
+  register as prLineRegister,
+  sessionStart as prLineStart,
+  turnComplete as prLineTurn,
+} from './pr-line/index'
+import {
+  abovePrompt as whereLineBand,
   sessionStart as whereLineStart,
   toolCallDone as whereLineTool,
   turnComplete as whereLineTurn,
@@ -30,7 +35,28 @@ export const register: Register = (on, options) => {
   const versionTagOn = !off.has('version-tag')
 
   if (prLineOn) prLineRegister(on, options)
-  if (whereLineOn) whereLineRegister(on, options)
+
+  // 입력창 위 band 는 여기서 한 번만 건다. 같은 플러그인 안 훅의 순서는 문서에 정해져 있지 않아,
+  // mod 마다 따로 걸면 어느 쪽이 바깥에 그려질지 알 수 없다 — 그래서 각 mod 의 줄을 모아 한 번에 그린다.
+  // 위에 한 줄 띄워 스피너(Brewing… 등)와 떼어 놓는다. 입력창과의 사이 빈 줄은 엔진이 그리는 여백이라
+  // band 안에서는 지울 수 없다(marginBottom -1 은 band 밖으로 밀려 줄이 잘려 보이지 않았다).
+  if (prLineOn || whereLineOn) {
+    on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+      const below = await next(e)
+      if (e.props.hasSurvey) return below
+      const prRows = prLineOn ? await prLineBand($, e) : null
+      const whereRow = whereLineOn ? await whereLineBand($, e) : null
+      if (prRows === null && whereRow === null) return below
+      const { Box } = $.ui.resolve(e)
+      return (
+        <Box flexDirection="column" marginTop={1}>
+          {below}
+          {prRows}
+          {whereRow}
+        </Box>
+      )
+    })
+  }
 
   on('session.start', async ($, e, next) => {
     if (prLineOn) await prLineStart($)

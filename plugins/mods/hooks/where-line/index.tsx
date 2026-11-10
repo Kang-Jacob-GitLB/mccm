@@ -1,7 +1,9 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, RenderNode } from 'claude-code'
 
 import type { WhereLine } from '../../types'
+
+type BandEvent = Parameters<EngineInterface['ui']['resolve']>[0]
 
 // 입력창 위에 지금 어디서 작업 중인지 한 줄로 보여 준다.
 //   ⎇ 브랜치  ·  🏠 main checkout · 저장소  |  🌿 worktree <이름> · 저장소  ·  📁 cwd
@@ -66,20 +68,17 @@ export function toolCallDone($: EngineInterface) {
   void refresh($)
 }
 
-// matcher 가 있는 훅만 여기서 직접 건다.
-export const register: Register = on => {
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+// 입력창 위 band 에 그릴 한 줄. band 훅은 mods 진입점(register.tsx)이 하나로 걸고
+// 각 mod 의 줄을 모아 간격을 맞춘다 — 그릴 것이 없으면 null.
+export async function abovePrompt($: EngineInterface, e: BandEvent): Promise<RenderNode | null> {
     const w = await read($, where)
     const ver = await read($, version)
-    const below = await next(e)
-    if (w === null || e.props.hasSurvey) return below
+    if (w === null) return null
 
     const { Box, Text } = $.ui.resolve(e)
     const sep = <Text dimColor>{'  ·  '}</Text>
 
     return (
-      <Box flexDirection="column">
-        {below}
         <Box justifyContent="space-between">
           <Box>
           {w.git === null ? (
@@ -101,7 +100,5 @@ export const register: Register = on => {
           {/* version-tag 가 읽어 둔 Claude Code 버전, 줄 맨 오른쪽 */}
           {ver !== null && <Text color="claude">{ver}</Text>}
         </Box>
-      </Box>
     )
-  })
 }
