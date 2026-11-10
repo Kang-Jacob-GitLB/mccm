@@ -2,6 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, RenderNode } from 'claude-code'
 
 import type { WhereLine } from '../../types'
+import { norm, parseRevParse } from './parse'
 
 type BandEvent = Parameters<EngineInterface['ui']['resolve']>[0]
 
@@ -20,33 +21,20 @@ const RUN_INIT = { env: { NoDefaultCurrentDirectoryInExePath: '1' }, timeoutMs: 
 
 const ICON = { branch: '⎇', tree: '🌿', home: '🏠', folder: '📁' }
 
-// 경로 표기를 통일한다: 역슬래시 → 슬래시, 끝 슬래시 제거.
-const norm = (p: string) => p.trim().replace(/\\/g, '/').replace(/\/+$/, '')
-const base = (p: string) => p.split('/').pop() ?? p
 // 홈 디렉터리는 ~ 로 줄인다 (Windows·Linux·macOS 홈 패턴).
 const tilde = (p: string) => p.replace(/^([A-Za-z]:\/Users\/[^/]+|\/home\/[^/]+|\/Users\/[^/]+)/, '~')
 
 async function refresh($: EngineInterface) {
   try {
-    const cwd = tilde(norm(await $.session.cwd()))
+    // git < 2.31 의 상대경로 출력은 tilde() 전 원본 cwd 기준으로 절대경로화한다.
+    const rawCwd = norm(await $.session.cwd())
+    const cwd = tilde(rawCwd)
     const r = await $.process.run(
       ['git', 'rev-parse', '--path-format=absolute', '--abbrev-ref', 'HEAD', '--show-toplevel', '--git-dir', '--git-common-dir'],
       RUN_INIT,
     )
     let next: WhereLine = { cwd, git: null }
-    if (r.exitCode === 0) {
-      const [head = '', top = '', gitDir = '', commonDir = ''] = r.stdout.split(/\r?\n/).map(norm)
-      // 링크된 워크트리는 git-dir(.git/worktrees/<name>)이 공용 .git 과 다르다.
-      const isWorktree = gitDir.toLowerCase() !== commonDir.toLowerCase()
-      next = {
-        cwd,
-        git: {
-          branch: head === 'HEAD' ? '(detached)' : head,
-          worktree: isWorktree ? base(top) : null,
-          repo: base(commonDir.replace(/\/\.git$/, '')),
-        },
-      }
-    }
+    if (r.exitCode === 0) next = { cwd, git: parseRevParse(r.stdout, rawCwd) }
     // 값이 그대로면 쓰지 않는다 — 쓰기는 밴드를 다시 그린다.
     if (JSON.stringify(await read($, where)) !== JSON.stringify(next)) await update($, where, () => next)
   } catch {

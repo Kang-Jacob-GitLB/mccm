@@ -252,9 +252,12 @@ mccm/
     │   │   ├── pr-line/
     │   │   │   └── index.tsx        ← gh 로 PR 읽기 · Flightdeck 패널/입력창 위 그리기
     │   │   ├── where-line/
-    │   │   │   └── index.tsx        ← git 으로 브랜치·워크트리·cwd 읽기 · 입력창 위 한 줄
+    │   │   │   ├── index.tsx        ← git 으로 브랜치·워크트리·cwd 읽기 · 입력창 위 한 줄
+    │   │   │   └── parse.ts         ← git rev-parse 출력 파서(순수 함수, git < 2.31 호환)
     │   │   └── version-tag/
     │   │       └── index.tsx        ← Claude Code 버전 읽기 · where-line 줄 맨 오른쪽에 표시
+    │   ├── tests/
+    │   │   └── where-line.test.ts   ← parse.ts 테스트 (claude plugin test plugins/mods)
     │   └── types/
     │       └── index.d.ts           ← 모든 mod 의 세션 상태 타입 계약
     └── worklog/
