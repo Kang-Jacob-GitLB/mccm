@@ -29,13 +29,19 @@ export function absolutize(p: string, cwd: string): string {
 
 export function parseRevParse(stdout: string, cwd: string): NonNullable<WhereLine['git']> {
   const lines = stdout.split(/\r?\n/).map(norm)
-  if (lines[0]?.startsWith('--path-format')) lines.shift()
+  const isOldGit = lines[0]?.startsWith('--path-format') ?? false
+  if (isOldGit) lines.shift()
   const [head = '', top = '', rawGitDir = '', rawCommonDir = ''] = lines
   const root = norm(cwd)
   const gitDir = absolutize(rawGitDir, root)
-  const commonDir = absolutize(rawCommonDir, root)
+  let commonDir = absolutize(rawCommonDir, root)
   // 링크된 워크트리는 git-dir(.git/worktrees/<name>)이 공용 .git 과 다르다.
   const isWorktree = gitDir.toLowerCase() !== commonDir.toLowerCase()
+  // git < 2.31 이 워크트리에서 common-dir 을 '.git' 처럼 엉뚱한 상대경로로 주면 cwd 로 풀어도
+  // <워크트리>/.git 이 된다. 링크된 워크트리의 git-dir 은 <공용 .git>/worktrees/<name> 이므로
+  // 거기서 공용 .git 을 되짚는다. 최신 git 출력에는 손대지 않는다.
+  const fromGitDir = /^(.+)\/worktrees\/[^/]+$/.exec(gitDir)?.[1]
+  if (isOldGit && isWorktree && fromGitDir) commonDir = fromGitDir
   return {
     branch: head === 'HEAD' ? '(detached)' : head,
     worktree: isWorktree ? base(top) : null,

@@ -53,6 +53,17 @@ describe('parseRevParse', () => {
     expect(parseRevParse(stdout, cwd)).toEqual({ branch: 'feat', worktree: 'wt', repo: 'repo' })
   })
 
+  test('(e\'\') git 2.17 출력, 링크된 워크트리(git-dir 절대 · common-dir 이 .git)', () => {
+    const cwd = '/home/u/repo/.claude/worktrees/wt'
+    const stdout = out(OLD, 'feat', cwd, '/home/u/repo/.git/worktrees/wt', '.git')
+    expect(parseRevParse(stdout, cwd)).toEqual({ branch: 'feat', worktree: 'wt', repo: 'repo' })
+  })
+
+  test('(e\'\'\') git 2.17 출력, worktrees 라는 폴더 안의 일반 저장소는 워크트리로 보지 않는다', () => {
+    const stdout = out(OLD, 'main', '/home/u/worktrees', '.git', '.git')
+    expect(parseRevParse(stdout, '/home/u/worktrees')).toEqual({ branch: 'main', worktree: null, repo: 'worktrees' })
+  })
+
   test('(f) detached HEAD — 최신 git', () => {
     const stdout = out('HEAD', '/home/u/repo', '/home/u/repo/.git', '/home/u/repo/.git')
     expect(parseRevParse(stdout, '/home/u/repo')).toEqual({ branch: '(detached)', worktree: null, repo: 'repo' })
