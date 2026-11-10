@@ -27,10 +27,24 @@ export function absolutize(p: string, cwd: string): string {
   return root + parts.join('/')
 }
 
-export function parseRevParse(stdout: string, cwd: string): NonNullable<WhereLine['git']> {
+// 출력 줄을 나누고 git < 2.31 이 되돌려 준 --path-format 줄을 버린다.
+function splitRevParse(stdout: string): { isOldGit: boolean; lines: string[] } {
   const lines = stdout.split(/\r?\n/).map(norm)
   const isOldGit = lines[0]?.startsWith('--path-format') ?? false
   if (isOldGit) lines.shift()
+  return { isOldGit, lines }
+}
+
+// 현재 브랜치의 PR 을 캐시할 키: 저장소 toplevel + 브랜치. detached HEAD 이거나 값이 비면 null(조회하지 않는다).
+// toplevel 은 워크트리마다 달라서 같은 브랜치 이름이라도 워크트리를 오가면 키가 바뀐다.
+export function revParsePrKey(stdout: string): string | null {
+  const [head = '', top = ''] = splitRevParse(stdout).lines
+  if (head === '' || head === 'HEAD' || top === '') return null
+  return `${top}\n${head}`
+}
+
+export function parseRevParse(stdout: string, cwd: string): NonNullable<WhereLine['git']> {
+  const { isOldGit, lines } = splitRevParse(stdout)
   const [head = '', top = '', rawGitDir = '', rawCommonDir = ''] = lines
   const root = norm(cwd)
   const gitDir = absolutize(rawGitDir, root)
