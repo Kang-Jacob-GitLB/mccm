@@ -33,6 +33,8 @@ declare module 'claude-code' {
       prLinePrs: Shaped<PrLine[]>
       // where-line
       whereLineWhere: WhereLine | null
+      // version-tag: 'v2.1.319' 같은 표시 문자열
+      versionTagVersion: string | null
     }
   }
 }
