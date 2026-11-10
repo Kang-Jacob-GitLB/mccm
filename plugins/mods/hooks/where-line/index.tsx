@@ -9,7 +9,7 @@ import { norm, parseRevParse, revParsePrKey } from './parse'
 type BandEvent = Parameters<EngineInterface['ui']['resolve']>[0]
 
 // 입력창 위에 지금 어디서 작업 중인지 한 줄로 보여 준다.
-//   📦 저장소  ·  ⎇ 브랜치  ·  🏠 main(주 체크아웃)  |  🌿 <워크트리 이름>  ·  📁 cwd  ·  #52
+//   📦 저장소 · ⎇ 브랜치 · 🏠 main(주 체크아웃)  |  🌿 <워크트리 이름> · 📁 cwd · #52
 // #52 는 현재 브랜치의 열린 PR — 노랑, draft 면 흐리게. 머지·닫힘·PR 없음이면 표시하지 않는다.
 // 저장소의 모든 PR 은 pr-line 이 보여 주므로 여기서는 지금 브랜치의 PR 하나만.
 // 주 체크아웃은 노랑(워크트리에서 작업하라는 규칙을 상기), 워크트리는 초록.
@@ -168,7 +168,7 @@ export async function abovePrompt($: EngineInterface, e: BandEvent): Promise<Ren
     if (w === null) return null
 
     const { Box, Text } = $.ui.resolve(e)
-    const sep = <Text dimColor>{'  ·  '}</Text>
+    const sep = <Text dimColor>{' · '}</Text>
 
     return (
         <Box justifyContent="space-between">
