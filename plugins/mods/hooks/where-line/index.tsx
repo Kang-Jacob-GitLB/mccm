@@ -8,7 +8,7 @@ import { pickGitPr, remember } from './session-pr'
 type BandEvent = Parameters<EngineInterface['ui']['resolve']>[0]
 
 // 입력창 위에 지금 어디서 작업 중인지 한 줄로 보여 준다.
-//   📦 저장소  ·  ⎇ 브랜치  ·  🏠 main checkout  |  🌿 worktree <이름>  ·  📁 cwd  ·  #52
+//   📦 저장소  ·  ⎇ 브랜치  ·  🏠 main checkout  |  🌿 <워크트리 이름>  ·  📁 cwd  ·  #52
 // #52 는 현재 세션의 PR(이 세션에서 만들거나 머지·코멘트·수정한 PR, 최근 것이 앞) — 노랑.
 // 주 체크아웃은 노랑(워크트리에서 작업하라는 규칙을 상기), 워크트리는 초록.
 // 세션 시작·턴 끝·툴 호출 직후에 git 으로 다시 읽고, 값이 바뀔 때만 다시 그린다.
@@ -24,6 +24,8 @@ const sessionPrs = atom({ plugin: 'mods', key: 'whereLineSessionPrs' } as const,
 const RUN_INIT = { env: { NoDefaultCurrentDirectoryInExePath: '1' }, timeoutMs: 5_000 }
 
 const ICON = { repo: '📦', branch: '⎇', tree: '🌿', home: '🏠', folder: '📁' }
+// 📦 상자 이모지의 황갈색에 맞춘 저장소 이름 색
+const REPO_COLOR = '#D4A373'
 
 // 홈 디렉터리는 ~ 로 줄인다 (Windows·Linux·macOS 홈 패턴).
 const tilde = (p: string) => p.replace(/^([A-Za-z]:\/Users\/[^/]+|\/home\/[^/]+|\/Users\/[^/]+)/, '~')
@@ -82,15 +84,15 @@ export async function abovePrompt($: EngineInterface, e: BandEvent): Promise<Ren
             <Text color="subtle">git 아님</Text>
           ) : (
             <Box>
-              {/* 저장소 이름은 맨 앞, 자홍 */}
-              <Text color="magenta" bold>{`${ICON.repo} ${w.git.repo}`}</Text>
+              {/* 저장소 이름은 맨 앞, 📦 상자와 비슷한 황갈색 */}
+              <Text color={REPO_COLOR} bold>{`${ICON.repo} ${w.git.repo}`}</Text>
               {sep}
               <Text color="suggestion" bold>{`${ICON.branch} ${w.git.branch}`}</Text>
               {sep}
               {w.git.worktree === null ? (
                 <Text color="warning">{`${ICON.home} main checkout`}</Text>
               ) : (
-                <Text color="success">{`${ICON.tree} worktree ${w.git.worktree}`}</Text>
+                <Text color="success">{`${ICON.tree} ${w.git.worktree}`}</Text>
               )}
             </Box>
           )}

@@ -76,7 +76,7 @@ Claude Code mod(세션 안에서 도는 TypeScript 훅 모듈) 여러 개를 플
 | mod | 설명 |
 |------|------|
 | [pr-line](plugins/mods/hooks/pr-line/) | 내가 연 열린 PR(최대 5개)의 제목과 CI 상태를 한 줄씩. [Flightdeck](https://github.com/scasella/claude-flightdeck) 패널이 열려 있으면 그 맨 아래 `pull requests` 상자로, 없거나 닫혀 있으면 입력창 위에 표시. `#번호` 노랑, 제목·CI 수는 draft면 회색·아니면 흰색, 줄 끝은 CI 결과(✔ ✘ ◐). `gh pr list --author @me`로 15초마다·턴 끝마다 읽기만 한다 |
-| [where-line](plugins/mods/hooks/where-line/) | 입력창 위에 지금 작업 위치를 한 줄로: `📦 저장소`(자홍, 맨 앞) · `⎇ 브랜치`(파랑) · `🏠 main checkout`(노랑) 또는 `🌿 worktree <이름>`(초록) · `📁 cwd`(흐림) · 현재 세션의 PR `#52`(노랑 — 이 세션에서 Bash·PowerShell로 만들거나 머지·코멘트·수정한 PR, 최근 것부터 최대 3개, 엔진이 툴 결과에 실어 주는 `gitOperation.pr`로 잡는다). 주 체크아웃을 노랑으로 띄워 워크트리 규칙을 상기시킨다. 세션 시작·턴 끝·툴 호출 직후에 `git rev-parse`로 다시 읽고 값이 바뀔 때만 다시 그린다 |
+| [where-line](plugins/mods/hooks/where-line/) | 입력창 위에 지금 작업 위치를 한 줄로: `📦 저장소`(📦와 비슷한 황갈색, 맨 앞) · `⎇ 브랜치`(파랑) · `🏠 main checkout`(노랑) 또는 `🌿 <워크트리 이름>`(초록) · `📁 cwd`(흐림) · 현재 세션의 PR `#52`(노랑 — 이 세션에서 Bash·PowerShell로 만들거나 머지·코멘트·수정한 PR, 최근 것부터 최대 3개, 엔진이 툴 결과에 실어 주는 `gitOperation.pr`로 잡는다). 주 체크아웃을 노랑으로 띄워 워크트리 규칙을 상기시킨다. 세션 시작·턴 끝·툴 호출 직후에 `git rev-parse`로 다시 읽고 값이 바뀔 때만 다시 그린다 |
 | [version-tag](plugins/mods/hooks/version-tag/) | where-line 줄 맨 오른쪽에 Claude Code 버전(`v2.1.319`, Claude 주황 — 테마 색 `claude`)을 붙인다. 세션 시작에 `$.session.version()`으로 한 번 읽어 두고, 그리는 것은 where-line이 한다(where-line을 끄면 버전도 안 보인다) |
 
 ```
