@@ -11,6 +11,17 @@ export type PrLine = {
   current: string
   // CLEAN, BLOCKED, BEHIND, DIRTY, UNSTABLE, DRAFT, UNKNOWN …
   merge: string
+  // PR 주소(모르면 빈 문자열)와 상태: OPEN, MERGED, CLOSED
+  url: string
+  state: string
+  // 이 세션에서 만들거나 머지·코멘트한 PR 이면 true
+  session: boolean
+}
+
+// 현재 세션의 PR 하나: 툴 결과 gitOperation.pr 에서 얻은 번호와 URL(없으면 null)
+export type PrRef = {
+  number: number
+  url: string | null
 }
 
 // ---- where-line ----
@@ -31,6 +42,7 @@ declare module 'claude-code' {
     mods: {
       // pr-line
       prLinePrs: Shaped<PrLine[]>
+      prLineSession: PrRef[]
       // where-line
       whereLineWhere: WhereLine | null
       // version-tag: 'v2.1.319' 같은 표시 문자열

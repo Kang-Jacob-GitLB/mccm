@@ -1,18 +1,22 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderNode, Timer } from 'claude-code'
 
-import type { PrLine } from '../../types'
+import type { PrLine, PrRef } from '../../types'
+import { combine, pickGitPr, remember, samePr } from './session'
 
 // 내가 연 열린 PR(최대 5개)의 제목과 CI 상태를 한 줄씩 보여 준다.
 // 1) Flightdeck 패널(requestId 'flightdeck') 맨 아래에 "pull requests" 상자로 붙이고,
 // 2) 그 패널에 붙어 있지 않으면 입력창 위에 같은 목록을 보여 준다.
-// 순서: 현재 브랜치의 PR 이 맨 앞, 나머지는 최근 갱신 순. 15초마다와 턴이 끝날 때 gh 로 다시 읽는다.
+// 순서: 현재 세션의 PR(이 세션에서 만들거나 머지·코멘트한 PR, 최대 3개 — 머지·닫힌 것도 남긴다)이 맨 앞,
+// 그다음 현재 브랜치의 PR, 나머지는 최근 갱신 순. 15초마다와 턴이 끝날 때 gh 로 다시 읽는다.
 
 const POLL_MS = 15_000
 const PANE_FRESH_MS = 45_000
 
 // 상태는 mods 플러그인 이름 아래에 둔다. 키에 mod 이름을 붙여 다른 mod 와 겹치지 않게.
-const prs = atom({ plugin: 'mods', key: 'prLinePrs' } as const, [], { shape: 'prs-2' })
+const prs = atom({ plugin: 'mods', key: 'prLinePrs' } as const, [], { shape: 'prs-3' })
+// 현재 세션의 PR. $.state 라 리로드돼도 세션 동안 남는다.
+const sessionPrs = atom({ plugin: 'mods', key: 'prLineSession' } as const, [] as PrRef[])
 const MAX_PRS = 5
 
 let poll: Timer | undefined
@@ -21,6 +25,8 @@ let busy = false
 let paneAt = 0
 // 패널에 붙어 있는 동안 true. 바뀔 때마다 다시 그리게 해 입력창 위 대체 줄을 끄고 켠다.
 let paneShown = false
+// 머지·닫힌 세션 PR 은 더 바뀌지 않으니 한 번 읽은 것을 다시 쓴다(15초마다 gh 를 부르지 않게).
+const finished = new Map<string, PrLine>()
 
 type Check = { __typename?: string; name?: string; context?: string; status?: string; conclusion?: string | null; state?: string }
 type Raw = {
@@ -31,6 +37,8 @@ type Raw = {
   statusCheckRollup?: Check[]
   mergeStateStatus: string
   updatedAt?: string
+  url?: string
+  state?: string
 }
 
 // Windows 에서 실행 파일을 현재 폴더(열어 둔 저장소)에서 먼저 찾지 않게 한다.
@@ -42,7 +50,7 @@ function clean(s: string): string {
   return s.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, '')
 }
 
-const FIELDS = 'number,title,headRefName,isDraft,statusCheckRollup,mergeStateStatus,updatedAt'
+const FIELDS = 'number,title,headRefName,isDraft,statusCheckRollup,mergeStateStatus,updatedAt,url,state'
 
 async function gh($: EngineInterface, args: string[]): Promise<string | undefined> {
   try {
@@ -104,7 +112,24 @@ function summarize(raw: Raw): PrLine {
     pending,
     current: clean(current || failed),
     merge: /^[A-Z_]+$/.test(raw.mergeStateStatus) ? raw.mergeStateStatus : 'UNKNOWN',
+    url: clean(raw.url ?? ''),
+    state: /^[A-Z]+$/.test(raw.state ?? '') ? (raw.state as string) : 'OPEN',
+    session: false,
   }
+}
+
+// 세션 PR 하나를 읽는다: 열린 목록에 있으면 그것을, 없으면(머지·닫힘, 남의 PR 등) gh pr view 로.
+async function sessionLine($: EngineInterface, ref: PrRef, open: PrLine[]): Promise<PrLine | undefined> {
+  const hit = open.find(o => samePr(o, ref))
+  if (hit) return hit
+  const key = ref.url ?? `#${ref.number}`
+  const done = finished.get(key)
+  if (done) return done
+  const out = await gh($, ['pr', 'view', ref.url ?? String(ref.number), '--json', FIELDS])
+  if (!out) return undefined
+  const line = summarize(JSON.parse(out) as Raw)
+  if (line.state !== 'OPEN') finished.set(key, line)
+  return line
 }
 
 // 패널이 한동안 안 그려졌으면(닫혔으면) 입력창 위 대체 줄을 다시 켠다.
@@ -119,7 +144,14 @@ async function refresh($: EngineInterface) {
   if (busy) return
   busy = true
   try {
-    const next = (await findPrs($)).map(summarize)
+    const open = (await findPrs($)).map(summarize)
+    const refs = await read($, sessionPrs)
+    const session: PrLine[] = []
+    for (const ref of refs) {
+      const l = await sessionLine($, ref, open)
+      if (l) session.push(l)
+    }
+    const next = combine(session, open)
     const prev = await read($, prs)
     // 바뀐 게 없으면 쓰지 않는다(쓸 때마다 패널이 다시 그려진다).
     if (JSON.stringify(prev) !== JSON.stringify(next)) await update($, prs, () => next)
@@ -141,26 +173,38 @@ const MERGE_TEXT: Record<string, [string, string | undefined]> = {
   UNKNOWN: ['계산 중', undefined],
 }
 
+// 머지·닫힌 PR 은 머지 가능 여부 대신 상태를 쓴다.
+const STATE_TEXT: Record<string, [string, string | undefined]> = {
+  MERGED: ['머지됨', 'magenta'],
+  CLOSED: ['닫힘', 'gray'],
+}
+
 // session log 처럼 상자 하나에 PR 한 줄씩: 왼쪽 "#번호 제목…", 오른쪽 CI 기호와 통과 수.
 function prBox($: EngineInterface, e: Parameters<EngineInterface['ui']['resolve']>[0], list: PrLine[]): RenderNode {
   const { Box, Text } = $.ui.resolve(e)
   return (
     <Box flexDirection="column" borderStyle="round" borderDimColor paddingX={1}>
-      <Text dimColor>pull requests · {list.length} open</Text>
+      <Text dimColor>
+        pull requests · {list.filter(p => p.state === 'OPEN').length} open
+        {list.some(p => p.session) ? ` · 세션 ${list.filter(p => p.session).length}` : ''}
+      </Text>
       {list.map(p => {
         const total = p.pass + p.fail + p.pending
         const ciMark = total === 0 ? '–' : p.pending > 0 ? '◐' : p.fail > 0 ? '✘' : '✔'
         const ciColor = total === 0 ? undefined : p.pending > 0 ? 'yellow' : p.fail > 0 ? 'red' : 'green'
+        const st = STATE_TEXT[p.state]
         return (
           <Box>
             <Box flexGrow={1} flexShrink={1} minWidth={0}>
               <Text wrap="truncate-end">
-                {/* #번호는 늘 노랑. 제목·숫자는 draft 면 회색, 아니면 흰색 */}
+                {/* 세션 PR 은 앞에 청록 ◆. #번호는 늘 노랑. 제목·숫자는 draft 면 회색, 아니면 흰색 */}
+                {p.session ? <Text color="cyan">◆ </Text> : null}
                 <Text color="yellow">#{p.number}</Text>
                 <Text color={p.isDraft ? 'gray' : 'white'}> {p.title}</Text>
               </Text>
             </Box>
             <Box flexShrink={0} marginLeft={2}>
+              {st ? <Text color={st[1]}>{st[0]} </Text> : null}
               <Text color={ciColor}>{ciMark}</Text>
               <Text color={p.isDraft ? 'gray' : 'white'}> {total === 0 ? '–' : `${p.pass}/${total}`}</Text>
             </Box>
@@ -177,11 +221,12 @@ function line($: EngineInterface, e: Parameters<EngineInterface['ui']['resolve']
   const ciMark = total === 0 ? '–' : p.pending > 0 ? '◐' : p.fail > 0 ? '✘' : '✔'
   const ciColor = total === 0 ? undefined : p.pending > 0 ? 'yellow' : p.fail > 0 ? 'red' : 'green'
   const ciText = total === 0 ? 'check 없음' : `${p.pass}/${total}${p.current ? ` ${p.current}` : ''}`
-  const [mergeText, mergeColor] = MERGE_TEXT[p.merge] ?? [p.merge.toLowerCase(), undefined]
+  const [mergeText, mergeColor] = STATE_TEXT[p.state] ?? MERGE_TEXT[p.merge] ?? [p.merge.toLowerCase(), undefined]
   return (
     <Box>
       <Box flexGrow={1} flexShrink={1} minWidth={0}>
         <Text wrap="truncate-end">
+          {p.session ? <Text color="cyan">◆ </Text> : null}
           <Text bold>#{p.number}</Text> {p.title}
         </Text>
       </Box>
@@ -207,6 +252,16 @@ export async function sessionStart($: EngineInterface) {
 
 // 턴 끝: 바로 한 번 더 읽는다. (turn.complete 도 진입점이 한 번만 건다)
 export async function turnComplete($: EngineInterface) {
+  void refresh($)
+}
+
+// 툴 호출 끝: Bash·PowerShell 결과에 PR 동작(생성·머지·코멘트 …)이 실려 있으면 세션 PR 로 기억하고 바로 다시 읽는다.
+// (tool.call 도 진입점이 한 번만 건다)
+export async function toolCallDone($: EngineInterface, tool: string, result: unknown) {
+  if (tool !== 'Bash' && tool !== 'PowerShell') return
+  const ref = pickGitPr(result)
+  if (!ref) return
+  await update($, sessionPrs, list => remember(list ?? [], ref))
   void refresh($)
 }
 
