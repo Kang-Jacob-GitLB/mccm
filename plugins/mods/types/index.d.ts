@@ -26,10 +26,17 @@ export type WhereLine = {
   } | null
 }
 
-// where-line: 현재 세션의 PR 하나 — 툴 결과 gitOperation.pr 에서 얻은 번호와 URL(없으면 null)
-export type SessionPr = {
+// where-line: 현재 브랜치의 열린 PR — gh pr view 로 얻는다
+export type BranchPr = {
   number: number
-  url: string | null
+  url: string
+  isDraft: boolean
+}
+
+// where-line: 어느 (toplevel, 브랜치) 키에서 읽은 PR 인가. 열린 PR 이 없으면 pr 이 null
+export type WhereLineBranchPr = {
+  key: string
+  pr: BranchPr | null
 }
 
 declare module 'claude-code' {
@@ -39,8 +46,8 @@ declare module 'claude-code' {
       prLinePrs: Shaped<PrLine[]>
       // where-line
       whereLineWhere: WhereLine | null
-      // 이 세션에서 다룬 PR, 최근 것이 앞(최대 3개)
-      whereLineSessionPrs: SessionPr[]
+      // 현재 브랜치의 PR. git 아님·detached HEAD 면 null
+      whereLineBranchPr: Shaped<WhereLineBranchPr | null>
       // version-tag: 'v2.1.319' 같은 표시 문자열
       versionTagVersion: string | null
     }
