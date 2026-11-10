@@ -9,6 +9,9 @@ import type { WhereLine } from '../../types'
 // 세션 시작·턴 끝·툴 호출 직후에 git 으로 다시 읽고, 값이 바뀔 때만 다시 그린다.
 
 const where = atom({ plugin: 'mods', key: 'whereLineWhere' } as const, null)
+// version-tag 가 세션 시작에 써 두는 Claude Code 버전. 줄 맨 오른쪽에 그린다(version-tag 를 끄면 null).
+// 검증기가 상태 키를 정적으로 읽으므로 import 하지 않고 같은 키로 이 파일에서 다시 만든다.
+const version = atom({ plugin: 'mods', key: 'versionTagVersion' } as const, null)
 
 // Windows 에서 실행 파일을 현재 폴더(열어 둔 저장소)에서 먼저 찾지 않게 한다.
 const RUN_INIT = { env: { NoDefaultCurrentDirectoryInExePath: '1' }, timeoutMs: 5_000 }
@@ -67,6 +70,7 @@ export function toolCallDone($: EngineInterface) {
 export const register: Register = on => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const w = await read($, where)
+    const ver = await read($, version)
     const below = await next(e)
     if (w === null || e.props.hasSurvey) return below
 
@@ -76,7 +80,8 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         {below}
-        <Box>
+        <Box justifyContent="space-between">
+          <Box>
           {w.git === null ? (
             <Text color="subtle">git 아님</Text>
           ) : (
@@ -92,6 +97,9 @@ export const register: Register = on => {
           )}
           {sep}
           <Text color="subtle">{`${ICON.folder} ${w.cwd}`}</Text>
+          </Box>
+          {/* version-tag 가 읽어 둔 Claude Code 버전, 줄 맨 오른쪽 */}
+          {ver !== null && <Text color="claude">{ver}</Text>}
         </Box>
       </Box>
     )

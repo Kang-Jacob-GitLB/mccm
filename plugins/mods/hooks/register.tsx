@@ -7,6 +7,7 @@ import {
   toolCallDone as whereLineTool,
   turnComplete as whereLineTurn,
 } from './where-line/index'
+import { sessionStart as versionTagStart } from './version-tag/index'
 
 // mods: 여러 mod 를 한 플러그인에 담는다.
 //
@@ -26,6 +27,7 @@ export const register: Register = (on, options) => {
   const off = disabledSet(options.disabled)
   const prLineOn = !off.has('pr-line')
   const whereLineOn = !off.has('where-line')
+  const versionTagOn = !off.has('version-tag')
 
   if (prLineOn) prLineRegister(on, options)
   if (whereLineOn) whereLineRegister(on, options)
@@ -33,6 +35,7 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     if (prLineOn) await prLineStart($)
     if (whereLineOn) await whereLineStart($)
+    if (versionTagOn) await versionTagStart($)
     return next(e)
   })
 
