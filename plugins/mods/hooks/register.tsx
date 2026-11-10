@@ -75,7 +75,7 @@ export const register: Register = (on, options) => {
   if (whereLineOn) {
     on('tool.call', async ($, e, next) => {
       const r = await next(e)
-      whereLineTool($)
+      whereLineTool($, e.tool, r.result)
       return r
     }).catch(($, e, next) => next(e))
   }

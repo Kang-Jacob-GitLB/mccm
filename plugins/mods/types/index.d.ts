@@ -26,6 +26,12 @@ export type WhereLine = {
   } | null
 }
 
+// where-line: 현재 세션의 PR 하나 — 툴 결과 gitOperation.pr 에서 얻은 번호와 URL(없으면 null)
+export type SessionPr = {
+  number: number
+  url: string | null
+}
+
 declare module 'claude-code' {
   interface PluginState {
     mods: {
@@ -33,6 +39,8 @@ declare module 'claude-code' {
       prLinePrs: Shaped<PrLine[]>
       // where-line
       whereLineWhere: WhereLine | null
+      // 이 세션에서 다룬 PR, 최근 것이 앞(최대 3개)
+      whereLineSessionPrs: SessionPr[]
       // version-tag: 'v2.1.319' 같은 표시 문자열
       versionTagVersion: string | null
     }
