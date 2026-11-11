@@ -1,9 +1,9 @@
 // action-line 의 gh run list 판정 테스트. 실행: claude plugin test plugins/mods
 import { describe, expect, test } from 'claude-code/testing'
 
-import { runMark, summarizeRuns } from '../hooks/action-line/runs'
+import { finishedLabel, runMark, summarizeRuns } from '../hooks/action-line/runs'
 
-type R = { databaseId: number; number: number; workflowName: string; headBranch: string; event: string; status: string; conclusion: string; createdAt: string }
+type R = { databaseId: number; number: number; workflowName: string; headBranch: string; event: string; status: string; conclusion: string; createdAt: string; updatedAt: string }
 const run = (o: Partial<R>): R => ({
   databaseId: 1,
   number: 1,
@@ -13,6 +13,7 @@ const run = (o: Partial<R>): R => ({
   status: 'completed',
   conclusion: 'success',
   createdAt: '2026-11-10T08:00:00Z',
+  updatedAt: '2026-11-10T08:05:00Z',
   ...o,
 })
 const list = (...rs: R[]) => JSON.stringify(rs)
@@ -55,8 +56,8 @@ describe('summarizeRuns', () => {
       ),
     )
     expect(out).toEqual([
-      { id: 4, number: 1, workflow: 'release', branch: 'v1.2.0', event: 'push', status: 'completed', conclusion: 'success' },
-      { id: 5, number: 1, workflow: 'nightly', branch: 'main', event: 'schedule', status: 'completed', conclusion: 'success' },
+      { id: 4, number: 1, workflow: 'release', branch: 'v1.2.0', event: 'push', status: 'completed', conclusion: 'success', finishedAt: '2026-11-10T08:05:00Z' },
+      { id: 5, number: 1, workflow: 'nightly', branch: 'main', event: 'schedule', status: 'completed', conclusion: 'success', finishedAt: '2026-11-10T08:05:00Z' },
     ])
   })
 
@@ -81,6 +82,8 @@ describe('summarizeRuns', () => {
     const out = summarizeRuns(list(run({ status: 'IN_PROGRESS', conclusion: '' })))
     expect(out?.[0]?.status).toBe('in_progress')
     expect(out?.[0]?.conclusion).toBe('')
+    // 끝나기 전 updatedAt 은 완료 시각이 아니다
+    expect(out?.[0]?.finishedAt).toBe('')
   })
 
   test('GitHub 글자에서 제어 문자를 지운다', () => {
@@ -114,5 +117,22 @@ describe('runMark', () => {
     expect(runMark('completed', 'skipped').label).toBe('건너뜀')
     expect(runMark('completed', 'action_required').label).toBe('승인 필요')
     expect(runMark('completed', 'neutral').label).toBe('neutral')
+  })
+})
+
+describe('finishedLabel', () => {
+  // 로컬 시간대에 상관없이 돌도록 기준 시각도 로컬로 만든다
+  const local = (y: number, mo: number, d: number, h: number, mi: number) => new Date(y, mo - 1, d, h, mi).toISOString()
+  const now = new Date(2026, 10, 10, 20, 0)
+  test('오늘이면 시:분만', () => {
+    expect(finishedLabel(local(2026, 11, 10, 9, 5), now)).toBe('09:05')
+  })
+  test('다른 날이면 월/일 시:분', () => {
+    expect(finishedLabel(local(2026, 11, 9, 18, 30), now)).toBe('11/9 18:30')
+    expect(finishedLabel(local(2025, 11, 10, 18, 30), now)).toBe('11/10 18:30')
+  })
+  test('비었거나 못 읽으면 빈 문자열', () => {
+    expect(finishedLabel('', now)).toBe('')
+    expect(finishedLabel('nope', now)).toBe('')
   })
 })

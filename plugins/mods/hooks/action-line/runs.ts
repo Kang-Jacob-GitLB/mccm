@@ -4,7 +4,7 @@ import { clean } from '../shared/clean'
 // `gh run list --json …` 출력을 action-line 이 보여 줄 실행 목록으로 바꾼다.
 // 프로세스·엔진에 의존하지 않는 순수 함수라 따로 테스트한다.
 
-export const RUN_FIELDS = 'databaseId,number,workflowDatabaseId,workflowName,headBranch,event,status,conclusion,createdAt'
+export const RUN_FIELDS = 'databaseId,number,workflowDatabaseId,workflowName,headBranch,event,status,conclusion,createdAt,updatedAt'
 // 실행이 드문 workflow(며칠 전 release 등)도 창 안에 들게 넉넉히 받는다(필드는 최소로).
 export const RUN_LIMIT = 100
 export const MAX_RUNS = 3
@@ -19,6 +19,7 @@ type Raw = {
   status?: unknown
   conclusion?: unknown
   createdAt?: unknown
+  updatedAt?: unknown
 }
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '')
@@ -44,6 +45,8 @@ export function summarizeRuns(stdout: string, max = MAX_RUNS): ActionRun[] | nul
       status: clean(str(r.status)).toLowerCase(),
       conclusion: clean(str(r.conclusion)).toLowerCase(),
       createdAt: str(r.createdAt),
+      // gh run list 에는 completedAt 이 없다. 끝난 실행은 그 뒤로 바뀌지 않으니 updatedAt 을 완료 시각으로 쓴다.
+      finishedAt: clean(str(r.status)).toLowerCase() === 'completed' ? str(r.updatedAt) : '',
       // 중복 제거 키: 같은 표시 이름(name: Build)을 쓰는 다른 workflow 파일도 따로 보이게 ID 로. 없으면 이름으로.
       wf: typeof r.workflowDatabaseId === 'number' ? `id:${r.workflowDatabaseId}` : `name:${clean(str(r.workflowName))}`,
     }))
@@ -86,4 +89,16 @@ export function runMark(status: string, conclusion: string): RunMark {
     default:
       return { mark: '–', color: 'gray', label: conclusion || '?' } // neutral·stale 등
   }
+}
+
+const pad = (n: number) => String(n).padStart(2, '0')
+
+// 완료 시각(ISO 8601) → 로컬 시간 표시. 오늘이면 "18:30", 아니면 "11/9 18:30". 비었거나 못 읽으면 빈 문자열.
+export function finishedLabel(iso: string, now: Date = new Date()): string {
+  if (iso === '') return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  const today = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
+  return today ? hm : `${d.getMonth() + 1}/${d.getDate()} ${hm}`
 }
