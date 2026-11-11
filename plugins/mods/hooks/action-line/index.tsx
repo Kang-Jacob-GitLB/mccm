@@ -7,15 +7,15 @@ import { RUN_FIELDS, RUN_LIMIT, runMark, summarizeRuns } from './runs'
 
 type PaneEvent = Parameters<EngineInterface['ui']['resolve']>[0]
 
-// 현재 저장소의 GitHub Actions 실행 중 PR 이 아닌 것(release·nightly·push·schedule·수동 실행 …)을
-// workflow 마다 가장 최근 것 하나씩(최대 5개), 상태 기호와 함께 보여 준다. PR 의 CI 는 pr-line 몫.
+// 현재 저장소의 GitHub Actions 실행(PR 실행 포함)을 workflow 마다 가장 최근 것 하나씩(최대 3개),
+// 실행 번호(#324)·상태 기호와 함께 보여 준다. 순서는 GitHub Actions 목록과 같은 생성 시각 최근 순.
 // 1) Flightdeck 패널 맨 아래, pr-line 의 "pull requests" 상자 밑에 "actions" 상자로 붙이고,
 // 2) 그 패널에 붙어 있지 않으면 입력창 위에 같은 목록을 보여 준다.
 // 30초마다와 턴이 끝날 때 `gh run list` 로 읽기만 한다.
 
 const POLL_MS = 30_000
 
-const runs = atom({ plugin: 'mods', key: 'actionLineRuns' } as const, [], { shape: 'runs-1' })
+const runs = atom({ plugin: 'mods', key: 'actionLineRuns' } as const, [], { shape: 'runs-2' })
 
 let poll: Timer | undefined
 let busy = false
@@ -48,6 +48,7 @@ function row($: EngineInterface, e: PaneEvent, r: ActionRun): RenderNode {
       <Box flexGrow={1} flexShrink={1} minWidth={0}>
         <Text wrap="truncate-end">
           <Text color="white">{r.workflow}</Text>
+          {r.number > 0 ? <Text color="yellow">{` #${r.number}`}</Text> : null}
           <Text color="gray">{` ${r.branch} · ${r.event}`}</Text>
         </Text>
       </Box>

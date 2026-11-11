@@ -14,9 +14,11 @@ export type PrLine = {
 }
 
 // ---- action-line ----
-// PR 이 아닌 GitHub Actions 실행 하나(workflow 마다 최신 것)
+// GitHub Actions 실행 하나(workflow 마다 최신 것, PR 실행 포함)
 export type ActionRun = {
   id: number
+  // workflow 안의 실행 번호(#324). 모르면 0
+  number: number
   workflow: string
   branch: string
   // push, schedule, workflow_dispatch, release …
@@ -58,7 +60,7 @@ declare module 'claude-code' {
     mods: {
       // pr-line
       prLinePrs: Shaped<PrLine[]>
-      // action-line: workflow 마다 최신 실행, 최근 순(최대 5개)
+      // action-line: workflow 마다 최신 실행, 최근 순(최대 3개)
       actionLineRuns: Shaped<ActionRun[]>
       // where-line
       whereLineWhere: WhereLine | null
