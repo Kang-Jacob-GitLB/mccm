@@ -77,7 +77,7 @@ Claude Code mod(세션 안에서 도는 TypeScript 훅 모듈) 여러 개를 플
 |------|------|
 | [pr-line](plugins/mods/hooks/pr-line/) | 내가 연 열린 PR(최대 5개)의 제목과 CI 상태를 한 줄씩. [Flightdeck](https://github.com/scasella/claude-flightdeck) 패널이 열려 있으면 그 맨 아래 `pull requests` 상자로, 없거나 닫혀 있으면 입력창 위에 표시. `#번호` 노랑, 제목·CI 수는 draft면 회색·아니면 흰색, 줄 끝은 CI 결과(✔ ✘ ◐). `gh pr list --author @me`로 15초마다·턴 끝마다 읽기만 한다 |
 | [action-line](plugins/mods/hooks/action-line/) | 현재 저장소의 GitHub Actions 실행(PR 실행 포함)을 workflow마다 가장 최근 것 하나씩(최대 3개), GitHub Actions 목록과 같은 생성 시각 최근 순으로. Flightdeck 패널이 열려 있으면 pr-line의 `pull requests` 상자 바로 아래 `actions` 상자로, 없거나 닫혀 있으면 입력창 위에 표시. 한 줄은 workflow 이름(흰색)·실행 번호(노란 `#324`)·브랜치/태그·이벤트(회색)·상태(✔ 성공 / ✘ 실패·시간 초과 / ◐ 진행 중 / ◌ 대기 / ⊘ 취소). 끝난 실행이면 상태 왼쪽에 완료 시각(회색, 오늘이면 `18:30`, 아니면 `11/9 18:30`). `gh run list --limit 100`으로 30초마다·턴 끝마다 읽기만 한다 |
-| [where-line](plugins/mods/hooks/where-line/) | 입력창 위에 지금 작업 위치를 한 줄로: `📦 저장소`(📦와 비슷한 황갈색, 맨 앞) · `⎇ 브랜치`(파랑) · `🏠 main`(노랑, 주 체크아웃) 또는 `🌿 <워크트리 이름>`(초록) · `📁 cwd`(흐림) · 현재 브랜치의 PR `#52`(노랑, draft면 흐리게 — 열린 PR일 때만, 머지·닫힘·PR 없음이면 표시 안 함. 저장소의 모든 PR은 pr-line이 보여 준다). 주 체크아웃을 노랑으로 띄워 워크트리 규칙을 상기시킨다. 다 들어가면 한 줄, 창이 좁아지면 항목 단위로 다음 줄로 넘어간다(구분점은 앞 줄 끝에 남고, PR 번호는 cwd와 함께 넘어간다) — 항목 하나가 중간에서 접히지 않고, 한 줄보다 긴 항목만 `…`로 자른다(cwd는 앞쪽, 나머지는 끝). 세션 시작·턴 끝·툴 호출 직후에 `git rev-parse`로 다시 읽고 값이 바뀔 때만 다시 그린다. PR은 인자 없는 `gh pr view`로 읽어 (toplevel, 브랜치) 단위로 30초 캐시하고, 브랜치·워크트리가 바뀌거나 Bash·PowerShell 결과에 PR 동작(`gitOperation.pr` — 생성·머지 등)이 실리면 바로 다시 읽는다. detached HEAD·git 아님이면 조회하지 않는다 |
+| [where-line](plugins/mods/hooks/where-line/) | 입력창 위에 지금 작업 위치를 한 줄로: `📦 저장소`(📦와 비슷한 황갈색, 맨 앞) · `⎇ 브랜치`(파랑) · `🏠 main`(노랑, 주 체크아웃) 또는 `🌿 <워크트리 이름>`(초록) · `📁 cwd`(흐림) · 현재 브랜치의 PR `#52`(노랑, draft면 흐리게 — 열린 PR일 때만, 머지·닫힘·PR 없음이면 표시 안 함. 저장소의 모든 PR은 pr-line이 보여 준다). 주 체크아웃을 노랑으로 띄워 워크트리 규칙을 상기시킨다. band 폭(`bodyColumns`)과 항목 칸 수로 줄을 직접 나눠, 다 들어가면 한 줄, 창이 좁아지면 항목 단위로 다음 줄로 넘어간다(구분점은 앞 줄 끝에 남고, PR 번호는 cwd와 함께 넘어간다) — 항목 하나가 중간에서 접히지 않고, 한 줄보다 긴 항목만 `…`로 자른다(cwd는 앞쪽, 나머지는 끝). 세션 시작·턴 끝·툴 호출 직후에 `git rev-parse`로 다시 읽고 값이 바뀔 때만 다시 그린다. PR은 인자 없는 `gh pr view`로 읽어 (toplevel, 브랜치) 단위로 30초 캐시하고, 브랜치·워크트리가 바뀌거나 Bash·PowerShell 결과에 PR 동작(`gitOperation.pr` — 생성·머지 등)이 실리면 바로 다시 읽는다. detached HEAD·git 아님이면 조회하지 않는다 |
 | [version-tag](plugins/mods/hooks/version-tag/) | where-line 줄 맨 오른쪽에 Claude Code 버전(`v2.1.319`, Claude 주황 — 테마 색 `claude`)을 붙인다. 세션 시작에 `$.session.version()`으로 한 번 읽어 두고, 그리는 것은 where-line이 한다(where-line을 끄면 버전도 안 보인다) |
 
 ```
@@ -261,14 +261,16 @@ mccm/
     │   │   ├── where-line/
     │   │   │   ├── index.tsx        ← git 으로 브랜치·워크트리·cwd, gh 로 브랜치 PR 읽기 · 입력창 위 한 줄
     │   │   │   ├── parse.ts         ← git rev-parse 출력 파서(순수 함수, git < 2.31 호환)
-    │   │   │   └── branch-pr.ts     ← 현재 브랜치 PR 판정: gh JSON·TTL·무효화(순수 함수)
+    │   │   │   ├── branch-pr.ts     ← 현재 브랜치 PR 판정: gh JSON·TTL·무효화(순수 함수)
+    │   │   │   └── layout.ts        ← 줄 나누기: 터미널 칸 폭·band 폭으로 항목 단위 줄바꿈(순수 함수)
     │   │   └── version-tag/
     │   │       └── index.tsx        ← Claude Code 버전 읽기 · where-line 줄 맨 오른쪽에 표시
     │   ├── tests/
     │   │   ├── action-line.test.ts  ← runs.ts 테스트 (claude plugin test plugins/mods)
     │   │   ├── pane.test.tsx        ← Flightdeck 패널에 PR·actions 상자가 순서대로 붙는지 그려 보기
     │   │   ├── where-line.test.ts   ← parse.ts 테스트
-    │   │   └── where-line-branch-pr.test.ts ← branch-pr.ts·PR 키 테스트
+    │   │   ├── where-line-branch-pr.test.ts ← branch-pr.ts·PR 키 테스트
+    │   │   └── where-line-layout.test.ts ← layout.ts 줄 나누기 테스트
     │   └── types/
     │       └── index.d.ts           ← 모든 mod 의 세션 상태 타입 계약
     └── worklog/

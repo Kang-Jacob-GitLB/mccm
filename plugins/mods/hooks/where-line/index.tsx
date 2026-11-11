@@ -4,6 +4,7 @@ import type { EngineInterface, RenderNode } from 'claude-code'
 import type { BranchPr, WhereLine, WhereLineBranchPr } from '../../types'
 import { invalidatesPr, needsFetch, parseGhPrView } from './branch-pr'
 import type { LastFetch } from './branch-pr'
+import { cellWidth, packLines } from './layout'
 import { norm, parseRevParse, revParsePrKey } from './parse'
 
 type BandEvent = Parameters<EngineInterface['ui']['resolve']>[0]
@@ -168,52 +169,81 @@ export async function abovePrompt($: EngineInterface, e: BandEvent): Promise<Ren
     if (w === null) return null
 
     const { Box, Text } = $.ui.resolve(e)
-    // Text 기본 wrap 은 좁아지면 조각마다 안에서 두 줄로 접혀 읽기 어렵다.
-    // 다 들어가면 한 줄, 좁아지면 항목 단위로 다음 줄로 넘어간다(flexWrap) — 항목 하나가 중간에서 접히지 않는다.
-    // 구분점은 앞 항목 끝에 붙인다 — 넘어간 줄이 ` · ` 로 시작하지 않고, 앞 줄이 ` ·` 로 끝나 이어짐을 보인다.
-    // 항목 하나가 한 줄보다 길 때만 그 항목을 잘라낸다: cwd 는 앞쪽을 … 로(끝 폴더가 남게),
-    // 나머지는 끝을 … 로. minWidth 0 이 없으면 글자 폭 아래로 줄지 않는다.
-    const sep = <Text dimColor>{' · '}</Text>
-    const item = (last: boolean, node: RenderNode) => (
+    // Text 기본 wrap 은 좁아지면 조각마다 안에서 두 줄로 접혀 읽기 어렵고, flexWrap 에 맡기면
+    // 넓은 창에서도 여러 줄로 나뉘었다. 그래서 band 폭(bodyColumns)과 항목 칸 수로 줄을 직접 나눈다:
+    // 다 들어가면 한 줄, 좁아지면 항목 단위로 다음 줄. 구분점은 앞 항목 끝에 붙어 앞 줄 끝에 남는다.
+    // 한 줄보다 긴 항목만 잘라낸다: cwd 는 앞쪽을 … 로(끝 폴더가 남게), 나머지는 끝을 … 로.
+    // minWidth 0 이 없으면 글자 폭 아래로 줄지 않는다.
+    const SEP = ' · '
+    const sep = <Text dimColor>{SEP}</Text>
+    type Item = { text: string; node: RenderNode }
+    const items: Item[] = []
+    if (w.git === null) {
+      items.push({ text: 'git 아님', node: <Text color="subtle" wrap="truncate-end">git 아님</Text> })
+    } else {
+      const repo = `${ICON.repo} ${w.git.repo}`
+      const branch = `${ICON.branch} ${w.git.branch}`
+      // 저장소 이름은 맨 앞, 📦 상자와 비슷한 황갈색
+      items.push({ text: repo, node: <Text color={REPO_COLOR} bold wrap="truncate-end">{repo}</Text> })
+      items.push({ text: branch, node: <Text color="suggestion" bold wrap="truncate-end">{branch}</Text> })
+      if (w.git.worktree === null) {
+        const home = `${ICON.home} main`
+        items.push({ text: home, node: <Text color="warning" wrap="truncate-end">{home}</Text> })
+      } else {
+        const tree = `${ICON.tree} ${w.git.worktree}`
+        items.push({ text: tree, node: <Text color="success" wrap="truncate-end">{tree}</Text> })
+      }
+    }
+    // cwd 는 마지막 항목. 📁 아이콘과 PR 번호는 따로 두어 경로 앞쪽이 잘려도 남기고,
+    // PR 은 cwd 와 한 항목으로 묶어 혼자 한 줄로 넘어가지 않게 한다.
+    const prText = pr !== null ? `${SEP}#${pr.number}` : ''
+    items.push({
+      text: `${ICON.folder} ${w.cwd}${prText}`,
+      node: (
+        <Box minWidth={0}>
+          <Box flexShrink={0}><Text color="subtle">{`${ICON.folder} `}</Text></Box>
+          <Box flexShrink={1} minWidth={0}><Text color="subtle" wrap="truncate-start">{w.cwd}</Text></Box>
+          {/* 현재 브랜치의 열린 PR, 노랑(draft 면 흐리게) — cwd 뒤 */}
+          {pr !== null && (
+            <Box flexShrink={0}>
+              {sep}
+              <Text color="yellow" dimColor={pr.isDraft}>{`#${pr.number}`}</Text>
+            </Box>
+          )}
+        </Box>
+      ),
+    })
+
+    const last = items.length - 1
+    const sepW = cellWidth(SEP)
+    const widths = items.map((it, i) => cellWidth(it.text) + (i < last ? sepW : 0))
+    // 첫 줄 오른쪽 끝에는 버전과 그 앞 한 칸이 들어간다.
+    // AbovePrompt 의 props 에만 있는 값이라 BandEvent(모든 사이트 공용 타입)에서는 좁혀 읽는다. 모르면 0 — 한 줄.
+    const bc = (e.props as { bodyColumns?: unknown } | undefined)?.bodyColumns
+    const cols = typeof bc === 'number' ? bc : 0
+    const verW = ver !== null ? cellWidth(ver) + 1 : 0
+    const lines = packLines(widths, cols, cols - verW)
+
+    const cell = (i: number) => (
       <Box flexShrink={1} minWidth={0}>
-        <Box flexShrink={1} minWidth={0}>{node}</Box>
-        {!last && <Box flexShrink={0}>{sep}</Box>}
+        <Box flexShrink={1} minWidth={0}>{items[i].node}</Box>
+        {i < last && <Box flexShrink={0}>{sep}</Box>}
+      </Box>
+    )
+    const row = (idx: number[]) => (
+      <Box flexShrink={1} minWidth={0} flexWrap="nowrap">
+        {idx.map(cell)}
       </Box>
     )
 
     return (
-        <Box justifyContent="space-between" flexWrap="nowrap">
-          <Box flexShrink={1} minWidth={0} flexWrap="wrap">
-          {w.git === null ? (
-            item(false, <Text color="subtle" wrap="truncate-end">git 아님</Text>)
-          ) : (
-            <Fragment>
-              {/* 저장소 이름은 맨 앞, 📦 상자와 비슷한 황갈색 */}
-              {item(false, <Text color={REPO_COLOR} bold wrap="truncate-end">{`${ICON.repo} ${w.git.repo}`}</Text>)}
-              {item(false, <Text color="suggestion" bold wrap="truncate-end">{`${ICON.branch} ${w.git.branch}`}</Text>)}
-              {w.git.worktree === null
-                ? item(false, <Text color="warning" wrap="truncate-end">{`${ICON.home} main`}</Text>)
-                : item(false, <Text color="success" wrap="truncate-end">{`${ICON.tree} ${w.git.worktree}`}</Text>)}
-            </Fragment>
-          )}
-          {/* cwd 는 마지막 항목. 📁 아이콘과 PR 번호는 따로 두어 경로 앞쪽이 잘려도 남기고,
-              PR 은 cwd 와 한 항목으로 묶어 혼자 한 줄로 넘어가지 않게 한다. */}
-          {item(true, (
-            <Box minWidth={0}>
-              <Box flexShrink={0}><Text color="subtle">{`${ICON.folder} `}</Text></Box>
-              <Box flexShrink={1} minWidth={0}><Text color="subtle" wrap="truncate-start">{w.cwd}</Text></Box>
-              {/* 현재 브랜치의 열린 PR, 노랑(draft 면 흐리게) — cwd 뒤 */}
-              {pr !== null && (
-                <Box flexShrink={0}>
-                  {sep}
-                  <Text color="yellow" dimColor={pr.isDraft}>{`#${pr.number}`}</Text>
-                </Box>
-              )}
-            </Box>
-          ))}
+        <Box flexDirection="column">
+          <Box justifyContent="space-between" flexWrap="nowrap">
+            {row(lines[0])}
+            {/* version-tag 가 읽어 둔 Claude Code 버전, 첫 줄 맨 오른쪽 — 왼쪽과 한 칸 띄운다 */}
+            {ver !== null && <Box flexShrink={0} marginLeft={1}><Text color="claude">{ver}</Text></Box>}
           </Box>
-          {/* version-tag 가 읽어 둔 Claude Code 버전, 줄 맨 오른쪽 — 왼쪽과 한 칸 띄운다 */}
-          {ver !== null && <Box flexShrink={0} marginLeft={1}><Text color="claude">{ver}</Text></Box>}
+          {lines.slice(1).map(row)}
         </Box>
     )
 }
