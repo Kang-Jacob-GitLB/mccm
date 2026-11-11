@@ -3,7 +3,7 @@ import type { EngineInterface, RenderNode, Timer } from 'claude-code'
 
 import type { ActionRun } from '../../types'
 import { isPaneShown } from '../shared/pane'
-import { RUN_FIELDS, RUN_LIMIT, runMark, summarizeRuns } from './runs'
+import { finishedLabel, RUN_FIELDS, RUN_LIMIT, runMark, summarizeRuns } from './runs'
 
 type PaneEvent = Parameters<EngineInterface['ui']['resolve']>[0]
 
@@ -15,7 +15,7 @@ type PaneEvent = Parameters<EngineInterface['ui']['resolve']>[0]
 
 const POLL_MS = 30_000
 
-const runs = atom({ plugin: 'mods', key: 'actionLineRuns' } as const, [], { shape: 'runs-2' })
+const runs = atom({ plugin: 'mods', key: 'actionLineRuns' } as const, [], { shape: 'runs-3' })
 
 let poll: Timer | undefined
 let busy = false
@@ -43,6 +43,7 @@ async function refresh($: EngineInterface) {
 function row($: EngineInterface, e: PaneEvent, r: ActionRun): RenderNode {
   const { Box, Text } = $.ui.resolve(e)
   const m = runMark(r.status, r.conclusion)
+  const at = finishedLabel(r.finishedAt)
   return (
     <Box>
       <Box flexGrow={1} flexShrink={1} minWidth={0}>
@@ -53,7 +54,10 @@ function row($: EngineInterface, e: PaneEvent, r: ActionRun): RenderNode {
         </Text>
       </Box>
       <Box flexShrink={0} marginLeft={2}>
-        <Text color={m.color}>{`${m.mark} ${m.label}`}</Text>
+        <Text>
+          {at !== '' ? <Text color="gray">{`${at} `}</Text> : null}
+          <Text color={m.color}>{`${m.mark} ${m.label}`}</Text>
+        </Text>
       </Box>
     </Box>
   )

@@ -27,6 +27,8 @@ export type ActionRun = {
   status: string
   // success, failure, cancelled … (끝나기 전엔 빈 문자열)
   conclusion: string
+  // 완료 시각 ISO 8601(gh 의 updatedAt). 끝나기 전엔 빈 문자열
+  finishedAt: string
 }
 
 // ---- where-line ----
