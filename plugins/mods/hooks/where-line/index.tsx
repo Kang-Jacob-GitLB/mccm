@@ -170,13 +170,14 @@ export async function abovePrompt($: EngineInterface, e: BandEvent): Promise<Ren
     const { Box, Text } = $.ui.resolve(e)
     // Text 기본 wrap 은 좁아지면 조각마다 안에서 두 줄로 접혀 읽기 어렵다.
     // 다 들어가면 한 줄, 좁아지면 항목 단위로 다음 줄로 넘어간다(flexWrap) — 항목 하나가 중간에서 접히지 않는다.
-    // 구분점은 뒤 항목에 붙여 함께 넘긴다. 항목 하나가 한 줄보다 길 때만 그 항목을 잘라낸다:
-    // cwd 는 앞쪽을 … 로(끝 폴더가 남게), 나머지는 끝을 … 로. minWidth 0 이 없으면 글자 폭 아래로 줄지 않는다.
+    // 구분점은 앞 항목 끝에 붙인다 — 넘어간 줄이 ` · ` 로 시작하지 않고, 앞 줄이 ` ·` 로 끝나 이어짐을 보인다.
+    // 항목 하나가 한 줄보다 길 때만 그 항목을 잘라낸다: cwd 는 앞쪽을 … 로(끝 폴더가 남게),
+    // 나머지는 끝을 … 로. minWidth 0 이 없으면 글자 폭 아래로 줄지 않는다.
     const sep = <Text dimColor>{' · '}</Text>
-    const item = (first: boolean, node: RenderNode) => (
+    const item = (last: boolean, node: RenderNode) => (
       <Box flexShrink={1} minWidth={0}>
-        {!first && <Box flexShrink={0}>{sep}</Box>}
         <Box flexShrink={1} minWidth={0}>{node}</Box>
+        {!last && <Box flexShrink={0}>{sep}</Box>}
       </Box>
     )
 
@@ -184,26 +185,32 @@ export async function abovePrompt($: EngineInterface, e: BandEvent): Promise<Ren
         <Box justifyContent="space-between" flexWrap="nowrap">
           <Box flexShrink={1} minWidth={0} flexWrap="wrap">
           {w.git === null ? (
-            item(true, <Text color="subtle" wrap="truncate-end">git 아님</Text>)
+            item(false, <Text color="subtle" wrap="truncate-end">git 아님</Text>)
           ) : (
             <Fragment>
               {/* 저장소 이름은 맨 앞, 📦 상자와 비슷한 황갈색 */}
-              {item(true, <Text color={REPO_COLOR} bold wrap="truncate-end">{`${ICON.repo} ${w.git.repo}`}</Text>)}
+              {item(false, <Text color={REPO_COLOR} bold wrap="truncate-end">{`${ICON.repo} ${w.git.repo}`}</Text>)}
               {item(false, <Text color="suggestion" bold wrap="truncate-end">{`${ICON.branch} ${w.git.branch}`}</Text>)}
               {w.git.worktree === null
                 ? item(false, <Text color="warning" wrap="truncate-end">{`${ICON.home} main`}</Text>)
                 : item(false, <Text color="success" wrap="truncate-end">{`${ICON.tree} ${w.git.worktree}`}</Text>)}
             </Fragment>
           )}
-          {/* 아이콘은 따로 두어 경로 앞쪽이 잘려도 📁 는 남긴다 */}
-          {item(false, (
+          {/* cwd 는 마지막 항목. 📁 아이콘과 PR 번호는 따로 두어 경로 앞쪽이 잘려도 남기고,
+              PR 은 cwd 와 한 항목으로 묶어 혼자 한 줄로 넘어가지 않게 한다. */}
+          {item(true, (
             <Box minWidth={0}>
               <Box flexShrink={0}><Text color="subtle">{`${ICON.folder} `}</Text></Box>
               <Box flexShrink={1} minWidth={0}><Text color="subtle" wrap="truncate-start">{w.cwd}</Text></Box>
+              {/* 현재 브랜치의 열린 PR, 노랑(draft 면 흐리게) — cwd 뒤 */}
+              {pr !== null && (
+                <Box flexShrink={0}>
+                  {sep}
+                  <Text color="yellow" dimColor={pr.isDraft}>{`#${pr.number}`}</Text>
+                </Box>
+              )}
             </Box>
           ))}
-          {/* 현재 브랜치의 열린 PR, 노랑(draft 면 흐리게) — cwd 뒤 */}
-          {pr !== null && item(false, <Text color="yellow" dimColor={pr.isDraft} wrap="truncate-end">{`#${pr.number}`}</Text>)}
           </Box>
           {/* version-tag 가 읽어 둔 Claude Code 버전, 줄 맨 오른쪽 — 왼쪽과 한 칸 띄운다 */}
           {ver !== null && <Box flexShrink={0} marginLeft={1}><Text color="claude">{ver}</Text></Box>}
