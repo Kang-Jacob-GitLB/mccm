@@ -1,11 +1,12 @@
 // action-line 의 gh run list 판정 테스트. 실행: claude plugin test plugins/mods
 import { describe, expect, test } from 'claude-code/testing'
 
-import { isPrEvent, runMark, summarizeRuns } from '../hooks/action-line/runs'
+import { runMark, summarizeRuns } from '../hooks/action-line/runs'
 
-type R = { databaseId: number; workflowName: string; headBranch: string; event: string; status: string; conclusion: string; createdAt: string }
+type R = { databaseId: number; number: number; workflowName: string; headBranch: string; event: string; status: string; conclusion: string; createdAt: string }
 const run = (o: Partial<R>): R => ({
   databaseId: 1,
+  number: 1,
   workflowName: 'release',
   headBranch: 'main',
   event: 'push',
@@ -17,7 +18,7 @@ const run = (o: Partial<R>): R => ({
 const list = (...rs: R[]) => JSON.stringify(rs)
 
 describe('summarizeRuns', () => {
-  test('PR 이벤트(pull_request·pull_request_target)는 뺀다', () => {
+  test('PR 이벤트(pull_request·pull_request_target)도 포함한다', () => {
     const out = summarizeRuns(
       list(
         run({ databaseId: 3, workflowName: 'build', event: 'pull_request', createdAt: '2026-11-10T09:00:00Z' }),
@@ -25,7 +26,24 @@ describe('summarizeRuns', () => {
         run({ databaseId: 1, workflowName: 'release', event: 'push' }),
       ),
     )
-    expect(out?.map(r => r.workflow)).toEqual(['release'])
+    expect(out?.map(r => r.workflow)).toEqual(['build', 'label', 'release'])
+  })
+
+  test('PR 실행이 더 최근이면 같은 workflow 의 push 실행 대신 그것을 보인다', () => {
+    const out = summarizeRuns(
+      list(
+        run({ databaseId: 2, number: 159, workflowName: 'Quality Gate', event: 'pull_request', createdAt: '2026-11-10T14:37:39Z' }),
+        run({ databaseId: 1, number: 140, workflowName: 'Quality Gate', event: 'workflow_dispatch', conclusion: 'failure', createdAt: '2026-11-09T01:49:40Z' }),
+      ),
+    )
+    expect(out?.map(r => [r.number, r.event, r.conclusion])).toEqual([[159, 'pull_request', 'success']])
+  })
+
+  test('실행 번호는 number 를 옮기고, 없거나 숫자가 아니면 0', () => {
+    expect(summarizeRuns(list(run({ number: 324 })))?.[0]?.number).toBe(324)
+    const { number: _, ...noNumber } = run({})
+    expect(summarizeRuns(JSON.stringify([noNumber]))?.[0]?.number).toBe(0)
+    expect(summarizeRuns(JSON.stringify([{ ...run({}), number: '7' }]))?.[0]?.number).toBe(0)
   })
 
   test('workflow 마다 가장 최근 실행 하나만, 최근 순', () => {
@@ -37,8 +55,8 @@ describe('summarizeRuns', () => {
       ),
     )
     expect(out).toEqual([
-      { id: 4, workflow: 'release', branch: 'v1.2.0', event: 'push', status: 'completed', conclusion: 'success' },
-      { id: 5, workflow: 'nightly', branch: 'main', event: 'schedule', status: 'completed', conclusion: 'success' },
+      { id: 4, number: 1, workflow: 'release', branch: 'v1.2.0', event: 'push', status: 'completed', conclusion: 'success' },
+      { id: 5, number: 1, workflow: 'nightly', branch: 'main', event: 'schedule', status: 'completed', conclusion: 'success' },
     ])
   })
 
@@ -53,9 +71,9 @@ describe('summarizeRuns', () => {
     expect(out?.map(r => r.conclusion)).toEqual(['success', 'failure'])
   })
 
-  test('최대 개수에서 자른다', () => {
+  test('최대 개수(3)에서 자른다', () => {
     const rs = [1, 2, 3, 4, 5, 6, 7].map(i => run({ databaseId: i, workflowName: `w${i}`, createdAt: `2026-11-10T0${i}:00:00Z` }))
-    expect(summarizeRuns(list(...rs))?.map(r => r.workflow)).toEqual(['w7', 'w6', 'w5', 'w4', 'w3'])
+    expect(summarizeRuns(list(...rs))?.map(r => r.workflow)).toEqual(['w7', 'w6', 'w5'])
     expect(summarizeRuns(list(...rs), 2)?.length).toBe(2)
   })
 
@@ -78,15 +96,6 @@ describe('summarizeRuns', () => {
     expect(summarizeRuns('[]')).toEqual([])
     expect(summarizeRuns('')).toBe(null)
     expect(summarizeRuns('{"a":1}')).toBe(null)
-  })
-})
-
-describe('isPrEvent', () => {
-  test('pull_request 로 시작하면 PR 이벤트', () => {
-    expect(isPrEvent('pull_request')).toBe(true)
-    expect(isPrEvent('pull_request_target')).toBe(true)
-    expect(isPrEvent('push')).toBe(false)
-    expect(isPrEvent('release')).toBe(false)
   })
 })
 

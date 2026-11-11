@@ -4,13 +4,14 @@ import { clean } from '../shared/clean'
 // `gh run list --json …` 출력을 action-line 이 보여 줄 실행 목록으로 바꾼다.
 // 프로세스·엔진에 의존하지 않는 순수 함수라 따로 테스트한다.
 
-export const RUN_FIELDS = 'databaseId,workflowDatabaseId,workflowName,headBranch,event,status,conclusion,createdAt'
-// PR 실행이 많은 저장소에서도 며칠 전 release 가 창 안에 들게 넉넉히 받는다(필드는 최소로).
+export const RUN_FIELDS = 'databaseId,number,workflowDatabaseId,workflowName,headBranch,event,status,conclusion,createdAt'
+// 실행이 드문 workflow(며칠 전 release 등)도 창 안에 들게 넉넉히 받는다(필드는 최소로).
 export const RUN_LIMIT = 100
-export const MAX_RUNS = 5
+export const MAX_RUNS = 3
 
 type Raw = {
   databaseId?: unknown
+  number?: unknown
   workflowDatabaseId?: unknown
   workflowName?: unknown
   headBranch?: unknown
@@ -22,10 +23,7 @@ type Raw = {
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '')
 
-// PR 의 CI 는 pr-line 이 보여 주므로 pull_request 로 시작하는 이벤트(pull_request_target 포함)는 뺀다.
-export const isPrEvent = (event: string) => event.startsWith('pull_request')
-
-// workflow 마다 가장 최근 실행 하나만, 최근 순으로 MAX_RUNS 개. JSON 이 아니거나 배열이 아니면 null.
+// PR 실행까지 포함해 workflow 마다 가장 최근 실행 하나만, 최근 순으로 MAX_RUNS 개(GitHub Actions 목록과 같은 순서). JSON 이 아니거나 배열이 아니면 null.
 export function summarizeRuns(stdout: string, max = MAX_RUNS): ActionRun[] | null {
   let raw: unknown
   try {
@@ -37,6 +35,8 @@ export function summarizeRuns(stdout: string, max = MAX_RUNS): ActionRun[] | nul
   const runs = (raw as Raw[])
     .map(r => ({
       id: typeof r.databaseId === 'number' ? r.databaseId : 0,
+      // workflow 안의 실행 번호(GitHub 화면의 #324). 없으면 0 — 화면에 # 를 붙이지 않는다.
+      number: typeof r.number === 'number' ? r.number : 0,
       workflow: clean(str(r.workflowName)),
       branch: clean(str(r.headBranch)),
       event: clean(str(r.event)),
@@ -47,7 +47,7 @@ export function summarizeRuns(stdout: string, max = MAX_RUNS): ActionRun[] | nul
       // 중복 제거 키: 같은 표시 이름(name: Build)을 쓰는 다른 workflow 파일도 따로 보이게 ID 로. 없으면 이름으로.
       wf: typeof r.workflowDatabaseId === 'number' ? `id:${r.workflowDatabaseId}` : `name:${clean(str(r.workflowName))}`,
     }))
-    .filter(r => r.workflow !== '' && !isPrEvent(r.event))
+    .filter(r => r.workflow !== '')
     // ISO 8601 UTC 는 문자열 비교가 곧 시간 비교다. 같으면 id 가 큰(나중) 쪽이 앞.
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id - a.id)
   const seen = new Set<string>()
