@@ -15,7 +15,7 @@ type PaneEvent = Parameters<EngineInterface['ui']['resolve']>[0]
 
 const POLL_MS = 30_000
 
-const runs = atom({ plugin: 'mods', key: 'actionLineRuns' } as const, [], { shape: 'runs-3' })
+const runs = atom({ plugin: 'mods', key: 'actionLineRuns' } as const, [], { shape: 'runs-4' })
 
 let poll: Timer | undefined
 let busy = false
@@ -41,7 +41,7 @@ async function refresh($: EngineInterface) {
 }
 
 function row($: EngineInterface, e: PaneEvent, r: ActionRun): RenderNode {
-  const { Box, Text } = $.ui.resolve(e)
+  const { Box, Text, Link } = $.ui.resolve(e)
   const m = runMark(r.status, r.conclusion)
   const at = finishedLabel(r.finishedAt)
   return (
@@ -49,7 +49,11 @@ function row($: EngineInterface, e: PaneEvent, r: ActionRun): RenderNode {
       <Box flexGrow={1} flexShrink={1} minWidth={0}>
         <Text wrap="truncate-end">
           <Text color="white">{r.workflow}</Text>
-          {r.number > 0 ? <Text color="yellow">{` #${r.number}`}</Text> : null}
+          {/* #번호는 실행 웹페이지 링크(터미널에 따라 Ctrl+클릭). 앞 공백은 링크 밖에 둔다 */}
+          {r.number > 0 ? <Text>{' '}</Text> : null}
+          {r.number > 0 ? (
+            r.url !== '' ? <Link href={r.url}><Text color="yellow">{`#${r.number}`}</Text></Link> : <Text color="yellow">{`#${r.number}`}</Text>
+          ) : null}
           <Text color="gray">{` ${r.branch} · ${r.event}`}</Text>
         </Text>
       </Box>
