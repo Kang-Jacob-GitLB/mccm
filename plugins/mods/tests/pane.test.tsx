@@ -19,8 +19,10 @@ const PANE = {
   },
 } as const
 
-const PR = { number: 7, title: 'feat: x', branch: 'feat', isDraft: false, pass: 1, fail: 0, pending: 0, current: '', merge: 'CLEAN' }
-const RUN = { id: 9, number: 324, workflow: 'release', branch: 'v1.2.0', event: 'push', status: 'completed', conclusion: 'failure', finishedAt: '' }
+const PR_URL = 'https://github.com/o/r/pull/7'
+const RUN_URL = 'https://github.com/o/r/actions/runs/9'
+const PR = { number: 7, url: PR_URL, title: 'feat: x', branch: 'feat', isDraft: false, pass: 1, fail: 0, pending: 0, current: '', merge: 'CLEAN' }
+const RUN = { id: 9, number: 324, url: RUN_URL, workflow: 'release', branch: 'v1.2.0', event: 'push', status: 'completed', conclusion: 'failure', finishedAt: '' }
 
 // 상태 저장소를 대신한다: 키마다 shape 태그를 단 값을 돌려준다(없는 키는 쓰인 적 없음).
 // 쓰기(state.set)는 테스트 킷이 받아 준다.
@@ -40,8 +42,8 @@ function seed(on: On, values: Record<string, unknown>) {
 
 test('PR 상자 아래에 actions 상자가 붙는다', async ($, on) => {
   seed(on, {
-    prLinePrs: { shape: 'prs-2', value: [PR] },
-    actionLineRuns: { shape: 'runs-3', value: [RUN] },
+    prLinePrs: { shape: 'prs-3', value: [PR] },
+    actionLineRuns: { shape: 'runs-4', value: [RUN] },
   })
   const ui = await $.ui.mount(PANE)
   const body = await ui.find({ type: 'Text', text: /flightdeck body/ })
@@ -62,7 +64,7 @@ test('PR 상자 아래에 actions 상자가 붙는다', async ($, on) => {
 })
 
 test('PR 이 없어도 actions 상자만 붙는다', async ($, on) => {
-  seed(on, { actionLineRuns: { shape: 'runs-3', value: [RUN] } })
+  seed(on, { actionLineRuns: { shape: 'runs-4', value: [RUN] } })
   const ui = await $.ui.mount(PANE)
   expect((await ui.find({ type: 'Text', text: /pull requests/ })) === undefined).toBe(true)
   expect((await ui.find({ type: 'Text', text: /^actions/ })) === undefined).toBe(false)
@@ -78,8 +80,38 @@ test('둘 다 비면 Flightdeck 본문만 그대로', async ($, on) => {
 })
 
 test('옛 shape 로 저장된 실행 목록은 비어 있는 것으로 읽는다', async ($, on) => {
-  seed(on, { actionLineRuns: { shape: 'runs-2', value: [RUN] } })
+  seed(on, { actionLineRuns: { shape: 'runs-3', value: [RUN] } })
   const ui = await $.ui.mount(PANE)
   expect((await ui.find({ type: 'Text', text: /^actions/ })) === undefined).toBe(true)
+  await ui.unmount()
+})
+
+test('#번호는 PR·실행 웹페이지 링크다', async ($, on) => {
+  seed(on, {
+    prLinePrs: { shape: 'prs-3', value: [PR] },
+    actionLineRuns: { shape: 'runs-4', value: [RUN] },
+  })
+  const ui = await $.ui.mount(PANE)
+  const hrefs = (await ui.findAll({ type: 'Link' })).map(l => l.props.href)
+  expect(hrefs).toEqual([PR_URL, RUN_URL])
+  await ui.unmount()
+})
+
+test('url 이 비면 링크 없이 번호만 그린다', async ($, on) => {
+  seed(on, {
+    prLinePrs: { shape: 'prs-3', value: [{ ...PR, url: '' }] },
+    actionLineRuns: { shape: 'runs-4', value: [{ ...RUN, url: '' }] },
+  })
+  const ui = await $.ui.mount(PANE)
+  expect((await ui.findAll({ type: 'Link' })).length).toBe(0)
+  expect((await ui.find({ type: 'Text', text: /#324/ })) === undefined).toBe(false)
+  expect((await ui.find({ type: 'Text', text: /#7/ })) === undefined).toBe(false)
+  await ui.unmount()
+})
+
+test('옛 shape 로 저장된 PR 목록(url 없음)은 비어 있는 것으로 읽는다', async ($, on) => {
+  seed(on, { prLinePrs: { shape: 'prs-2', value: [PR] } })
+  const ui = await $.ui.mount(PANE)
+  expect((await ui.find({ type: 'Text', text: /pull requests/ })) === undefined).toBe(true)
   await ui.unmount()
 })

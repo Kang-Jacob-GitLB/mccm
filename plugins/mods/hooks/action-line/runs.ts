@@ -1,10 +1,11 @@
 import type { ActionRun } from '../../types'
 import { clean } from '../shared/clean'
+import { runUrl } from '../shared/url'
 
 // `gh run list --json …` 출력을 action-line 이 보여 줄 실행 목록으로 바꾼다.
 // 프로세스·엔진에 의존하지 않는 순수 함수라 따로 테스트한다.
 
-export const RUN_FIELDS = 'databaseId,number,workflowDatabaseId,workflowName,headBranch,event,status,conclusion,createdAt,updatedAt'
+export const RUN_FIELDS = 'databaseId,number,url,workflowDatabaseId,workflowName,headBranch,event,status,conclusion,createdAt,updatedAt'
 // 실행이 드문 workflow(며칠 전 release 등)도 창 안에 들게 넉넉히 받는다(필드는 최소로).
 export const RUN_LIMIT = 100
 export const MAX_RUNS = 3
@@ -12,6 +13,7 @@ export const MAX_RUNS = 3
 type Raw = {
   databaseId?: unknown
   number?: unknown
+  url?: unknown
   workflowDatabaseId?: unknown
   workflowName?: unknown
   headBranch?: unknown
@@ -38,6 +40,8 @@ export function summarizeRuns(stdout: string, max = MAX_RUNS): ActionRun[] | nul
       id: typeof r.databaseId === 'number' ? r.databaseId : 0,
       // workflow 안의 실행 번호(GitHub 화면의 #324). 없으면 0 — 화면에 # 를 붙이지 않는다.
       number: typeof r.number === 'number' ? r.number : 0,
+      // 실행 웹페이지 — #번호 링크. 모양이 이상하면 빈 문자열
+      url: runUrl(r.url),
       workflow: clean(str(r.workflowName)),
       branch: clean(str(r.headBranch)),
       event: clean(str(r.event)),

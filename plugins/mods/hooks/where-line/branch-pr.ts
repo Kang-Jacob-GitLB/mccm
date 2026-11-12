@@ -1,12 +1,11 @@
 import type { BranchPr } from '../../types'
+import { isPrUrl } from '../shared/url'
 
 // 현재 브랜치의 PR — `gh pr view --json number,url,state,isDraft` 를 인자 없이 세션 cwd 에서 돌려 얻는다.
 // 프로세스·엔진에 의존하지 않는 판정만 여기 두고 따로 테스트한다. 조회 자체는 index.tsx 가 한다.
 
 // 같은 (toplevel, 브랜치) 에서 다시 조회하기까지의 시간. refresh 는 툴 호출마다 불린다.
 export const PR_TTL_MS = 30_000
-
-const PR_URL = /^https:\/\/[^\s/]+\/[^\s/]+\/[^\s/]+\/pull\/\d+$/
 
 // gh pr view 의 JSON 을 표시할 PR 로 바꾼다. 열린(OPEN) PR 만 돌려주고,
 // MERGED·CLOSED 이거나 모양이 이상하면 null(아무것도 표시하지 않는다).
@@ -21,7 +20,7 @@ export function parseGhPrView(stdout: string): BranchPr | null {
   const { number, url, state, isDraft } = raw as { number?: unknown; url?: unknown; state?: unknown; isDraft?: unknown }
   if (state !== 'OPEN') return null
   if (typeof number !== 'number' || !Number.isInteger(number) || number <= 0) return null
-  if (typeof url !== 'string' || !PR_URL.test(url)) return null
+  if (!isPrUrl(url)) return null
   return { number, url, isDraft: isDraft === true }
 }
 

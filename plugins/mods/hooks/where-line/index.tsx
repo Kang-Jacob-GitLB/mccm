@@ -168,7 +168,7 @@ export async function abovePrompt($: EngineInterface, e: BandEvent): Promise<Ren
     const pr = (await read($, branchPr))?.pr ?? null
     if (w === null) return null
 
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Text, Link } = $.ui.resolve(e)
     // Text 기본 wrap 은 좁아지면 조각마다 안에서 두 줄로 접혀 읽기 어렵고, flexWrap 에 맡기면
     // 넓은 창에서도 여러 줄로 나뉘었다. 그래서 band 폭(bodyColumns)과 항목 칸 수로 줄을 직접 나눈다:
     // 다 들어가면 한 줄, 좁아지면 항목 단위로 다음 줄. 구분점은 앞 항목 끝에 붙어 앞 줄 끝에 남는다.
@@ -207,7 +207,10 @@ export async function abovePrompt($: EngineInterface, e: BandEvent): Promise<Ren
           {pr !== null && (
             <Box flexShrink={0}>
               {sep}
-              <Text color="yellow" dimColor={pr.isDraft}>{`#${pr.number}`}</Text>
+              {/* 누르면(터미널에 따라 Ctrl+클릭) PR 웹페이지 — url 은 parseGhPrView 가 검사했다 */}
+              <Link href={pr.url}>
+                <Text color="yellow" dimColor={pr.isDraft}>{`#${pr.number}`}</Text>
+              </Link>
             </Box>
           )}
         </Box>

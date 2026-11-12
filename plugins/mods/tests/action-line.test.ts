@@ -3,10 +3,11 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import { finishedLabel, runMark, summarizeRuns } from '../hooks/action-line/runs'
 
-type R = { databaseId: number; number: number; workflowName: string; headBranch: string; event: string; status: string; conclusion: string; createdAt: string; updatedAt: string }
+type R = { databaseId: number; number: number; url: string; workflowName: string; headBranch: string; event: string; status: string; conclusion: string; createdAt: string; updatedAt: string }
 const run = (o: Partial<R>): R => ({
   databaseId: 1,
   number: 1,
+  url: 'https://github.com/o/r/actions/runs/1',
   workflowName: 'release',
   headBranch: 'main',
   event: 'push',
@@ -19,6 +20,22 @@ const run = (o: Partial<R>): R => ({
 const list = (...rs: R[]) => JSON.stringify(rs)
 
 describe('summarizeRuns', () => {
+  test('실행 웹페이지 url 은 모양이 맞을 때만 받는다', () => {
+    const url = (u: unknown) => summarizeRuns(JSON.stringify([{ ...run({}), url: u }]))?.[0]?.url
+    expect(url('https://github.com/o/r/actions/runs/123')).toBe('https://github.com/o/r/actions/runs/123')
+    expect(url('http://github.com/o/r/actions/runs/123')).toBe('')
+    expect(url('https://github.com/o/r/pull/1')).toBe('')
+    // 제어 글자가 칸 중간에 끼면(ESC·BEL·C1 ST·방향 문자) 거른다 — OSC 8 을 일찍 닫거나 새 링크를 열 수 있다
+    for (const c of [0x1b, 0x07, 0x9c, 0x202e]) {
+      const ch = String.fromCharCode(c)
+      expect(url(`https://github.com/o${ch}]8;;x${ch}/r/actions/runs/1`)).toBe('')
+      expect(url(`https://git${ch}hub.com/o/r/actions/runs/1`)).toBe('')
+    }
+    expect(url('https://github.com/o/r/actions/runs/1 ')).toBe('')
+    expect(url('https://ghe.example.com:8443/my-org/my.repo/actions/runs/5')).toBe('https://ghe.example.com:8443/my-org/my.repo/actions/runs/5')
+    expect(url(7)).toBe('')
+  })
+
   test('PR 이벤트(pull_request·pull_request_target)도 포함한다', () => {
     const out = summarizeRuns(
       list(
@@ -56,8 +73,8 @@ describe('summarizeRuns', () => {
       ),
     )
     expect(out).toEqual([
-      { id: 4, number: 1, workflow: 'release', branch: 'v1.2.0', event: 'push', status: 'completed', conclusion: 'success', finishedAt: '2026-11-10T08:05:00Z' },
-      { id: 5, number: 1, workflow: 'nightly', branch: 'main', event: 'schedule', status: 'completed', conclusion: 'success', finishedAt: '2026-11-10T08:05:00Z' },
+      { id: 4, number: 1, url: 'https://github.com/o/r/actions/runs/1', workflow: 'release', branch: 'v1.2.0', event: 'push', status: 'completed', conclusion: 'success', finishedAt: '2026-11-10T08:05:00Z' },
+      { id: 5, number: 1, url: 'https://github.com/o/r/actions/runs/1', workflow: 'nightly', branch: 'main', event: 'schedule', status: 'completed', conclusion: 'success', finishedAt: '2026-11-10T08:05:00Z' },
     ])
   })
 

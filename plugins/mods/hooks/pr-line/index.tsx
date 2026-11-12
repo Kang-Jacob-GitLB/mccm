@@ -4,6 +4,7 @@ import type { EngineInterface, RenderNode, Timer } from 'claude-code'
 import type { PrLine } from '../../types'
 import { clean } from '../shared/clean'
 import { isPaneShown } from '../shared/pane'
+import { prUrl } from '../shared/url'
 
 // 내가 연 열린 PR(최대 5개)의 제목과 CI 상태를 한 줄씩 보여 준다.
 // 1) Flightdeck 패널(requestId 'flightdeck') 맨 아래에 "pull requests" 상자로 붙이고,
@@ -14,7 +15,7 @@ import { isPaneShown } from '../shared/pane'
 const POLL_MS = 15_000
 
 // 상태는 mods 플러그인 이름 아래에 둔다. 키에 mod 이름을 붙여 다른 mod 와 겹치지 않게.
-const prs = atom({ plugin: 'mods', key: 'prLinePrs' } as const, [], { shape: 'prs-2' })
+const prs = atom({ plugin: 'mods', key: 'prLinePrs' } as const, [], { shape: 'prs-3' })
 const MAX_PRS = 5
 
 let poll: Timer | undefined
@@ -23,6 +24,7 @@ let busy = false
 type Check = { __typename?: string; name?: string; context?: string; status?: string; conclusion?: string | null; state?: string }
 type Raw = {
   number: number
+  url?: unknown
   title: string
   headRefName: string
   isDraft: boolean
@@ -34,7 +36,7 @@ type Raw = {
 // Windows 에서 실행 파일을 현재 폴더(열어 둔 저장소)에서 먼저 찾지 않게 한다.
 const RUN_INIT = { env: { NoDefaultCurrentDirectoryInExePath: '1' }, timeoutMs: 20_000 }
 
-const FIELDS = 'number,title,headRefName,isDraft,statusCheckRollup,mergeStateStatus,updatedAt'
+const FIELDS = 'number,url,title,headRefName,isDraft,statusCheckRollup,mergeStateStatus,updatedAt'
 
 async function gh($: EngineInterface, args: string[]): Promise<string | undefined> {
   try {
@@ -88,6 +90,7 @@ function summarize(raw: Raw): PrLine {
   }
   return {
     number: raw.number,
+    url: prUrl(raw.url),
     title: clean(raw.title),
     branch: clean(raw.headRefName),
     isDraft: raw.isDraft,
@@ -125,6 +128,12 @@ const MERGE_TEXT: Record<string, [string, string | undefined]> = {
   UNKNOWN: ['계산 중', undefined],
 }
 
+// #번호를 PR 웹페이지 링크로 감싼다(터미널에 따라 Ctrl+클릭). url 이 없으면 번호만.
+function num($: EngineInterface, e: Parameters<EngineInterface['ui']['resolve']>[0], p: PrLine, node: RenderNode): RenderNode {
+  const { Link } = $.ui.resolve(e)
+  return p.url === '' ? node : <Link href={p.url}>{node}</Link>
+}
+
 // session log 처럼 상자 하나에 PR 한 줄씩: 왼쪽 "#번호 제목…", 오른쪽 CI 기호와 통과 수.
 function prBox($: EngineInterface, e: Parameters<EngineInterface['ui']['resolve']>[0], list: PrLine[]): RenderNode {
   const { Box, Text } = $.ui.resolve(e)
@@ -140,7 +149,7 @@ function prBox($: EngineInterface, e: Parameters<EngineInterface['ui']['resolve'
             <Box flexGrow={1} flexShrink={1} minWidth={0}>
               <Text wrap="truncate-end">
                 {/* #번호는 늘 노랑. 제목·숫자는 draft 면 회색, 아니면 흰색 */}
-                <Text color="yellow">#{p.number}</Text>
+                {num($, e, p, <Text color="yellow">#{p.number}</Text>)}
                 <Text color={p.isDraft ? 'gray' : 'white'}> {p.title}</Text>
               </Text>
             </Box>
@@ -166,7 +175,7 @@ function line($: EngineInterface, e: Parameters<EngineInterface['ui']['resolve']
     <Box>
       <Box flexGrow={1} flexShrink={1} minWidth={0}>
         <Text wrap="truncate-end">
-          <Text bold>#{p.number}</Text> {p.title}
+          {num($, e, p, <Text bold>#{p.number}</Text>)} {p.title}
         </Text>
       </Box>
       <Box flexShrink={0} marginLeft={1}>

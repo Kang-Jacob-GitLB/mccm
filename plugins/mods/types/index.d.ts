@@ -1,6 +1,8 @@
 // ---- pr-line ----
 export type PrLine = {
   number: number
+  // PR 웹페이지. 모양이 이상하면 빈 문자열(링크 없이 번호만)
+  url: string
   title: string
   branch: string
   isDraft: boolean
@@ -19,6 +21,8 @@ export type ActionRun = {
   id: number
   // workflow 안의 실행 번호(#324). 모르면 0
   number: number
+  // 실행 웹페이지. 모양이 이상하면 빈 문자열(링크 없이 번호만)
+  url: string
   workflow: string
   branch: string
   // push, schedule, workflow_dispatch, release …
