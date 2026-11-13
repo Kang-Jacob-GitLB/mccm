@@ -88,7 +88,7 @@ Claude Code mod(세션 안에서 도는 TypeScript 훅 모듈) 여러 개를 플
 ╰──────────────────────────────────────────────╯
 ```
 
-**사전 요구사항:** Claude Code 2.1.289 이상. pr-line은 `gh`(`gh auth login`)와 `git`, action-line은 `gh`(`gh auth login`), where-line은 `git`과 `gh`(PR 표시용, 없으면 PR만 빠진다). [Flightdeck](https://github.com/scasella/claude-flightdeck)에 의존한다(`dependencies`) — Flightdeck 패널 훅은 `next`를 부르지 않아 mods 훅이 그보다 바깥에서 돌아야 패널에 상자를 붙일 수 있고, 의존 관계 없는 사용자 설치 mod 끼리의 순서는 문서에 정해져 있지 않다(Claude Code 업데이트 뒤 상자가 입력창 위로 밀려난 것도 이 순서가 바뀐 탓으로 본다). 문서화된 규칙 "의존하는 mod 가 먼저(바깥)"로 순서를 고정한다. mods를 설치하면 Flightdeck도 함께 설치되고, Flightdeck을 끄면 mods도 꺼진다.
+**사전 요구사항:** Claude Code 2.1.289 이상. pr-line은 `gh`(`gh auth login`)와 `git`, action-line은 `gh`(`gh auth login`), where-line은 `git`과 `gh`(PR 표시용, 없으면 PR만 빠진다). [Flightdeck](https://github.com/scasella/claude-flightdeck)에 의존한다(`dependencies`) — Flightdeck 패널 훅은 `next`를 부르지 않아 mods 훅이 그보다 바깥에서 돌아야 패널에 상자를 붙일 수 있고, 의존 관계 없는 사용자 설치 mod 끼리의 순서는 문서에 정해져 있지 않다. 문서화된 규칙 "의존하는 mod 가 먼저(바깥)"로 순서를 고정한다. 또 `ui.render` 매처의 `plugin` 키는 생략하면 자기 플러그인이 연 패널만 듣기 때문에, Flightdeck 패널 훅은 `plugin: '*'`를 적어야 불린다(빠지면 상자가 입력창 위로 밀려난다). mods를 설치하면 Flightdeck도 함께 설치되고, Flightdeck을 끄면 mods도 꺼진다.
 
 **mod 추가 규칙:** `hooks/<mod>/index.tsx`에 matcher 있는 훅은 그 mod의 `register`로, matcher 없는 공용 이벤트(`session.start`·`turn.complete` 등)는 함수로 내보내 진입점이 한 번만 걸고 부른다(같은 이벤트를 matcher 없이 두 번 걸면 엔진이 거부한다). 상태 키는 mod 이름을 앞에 붙이고(`prLinePrs`), 타입은 `types/index.d.ts` 한 곳에 둔다.
 

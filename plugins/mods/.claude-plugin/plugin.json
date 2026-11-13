@@ -1,6 +1,6 @@
 {
   "name": "mods",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "Claude Code mod 모음 — 세션 안에서 도는 TypeScript 훅 모듈 여러 개를 한 플러그인에 담는다. pr-line: 내가 연 열린 PR(최대 5개)의 제목과 CI 상태를 한 줄씩, Flightdeck 패널 맨 아래 \"pull requests\" 상자(패널이 닫혀 있으면 입력창 위)에 표시. action-line: GitHub Actions 실행(PR 실행 포함)을 workflow 마다 최신 하나씩(최대 3개) 실행 번호(#324)·상태 기호와 함께, Flightdeck 패널의 pull requests 상자 아래 \"actions\" 상자(패널이 닫혀 있으면 입력창 위)에 표시, 끝난 실행은 완료 시각도. where-line: 입력창 위에 현재 브랜치·그 브랜치의 열린 PR(노란 #번호, draft 는 흐리게, 머지·닫힘이면 숨김)·워크트리(주 체크아웃은 노랑, 워크트리는 초록)·cwd 를 한 줄로 표시. version-tag: where-line 줄 맨 오른쪽에 Claude Code 버전(v2.1.319)을 표시. 설정 disabled 로 mod 별로 끌 수 있다. 세 줄의 #번호는 누르면 GitHub 웹페이지로 가는 링크(OSC 8).",
   "author": {
     "name": "Kang-Jacob-GitLB",
