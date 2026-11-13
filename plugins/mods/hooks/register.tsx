@@ -46,7 +46,9 @@ export const register: Register = (on, options) => {
   const paneOn = prLineOn || actionLineOn
 
   // Flightdeck 패널 맨 아래에 위에서부터 pull requests 상자, actions 상자를 붙인다.
-  // Flightdeck 보다 바깥에서 돌 때만 여기 온다. 둘 다 그릴 것이 없으면 패널을 그대로 둔다.
+  // Flightdeck 의 패널 훅은 next 를 부르지 않아 mods 가 그보다 바깥에서 돌 때만 여기 온다.
+  // 같은 사용자 설치 mod 끼리의 순서는 정해져 있지 않으므로 plugin.json dependencies 로 고정한다
+  // (의존하는 쪽이 먼저 = 바깥). 둘 다 그릴 것이 없으면 패널을 그대로 둔다.
   if (paneOn) {
     on('ui.render', { component: 'Pane', requestId: 'flightdeck' }, async ($, e, next) => {
       const inner = await next(e)
