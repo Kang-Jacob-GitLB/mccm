@@ -4,8 +4,10 @@ import type { TestBody } from 'claude-code/testing'
 
 type On = Parameters<TestBody>[1]
 
+// 패널은 Flightdeck 이 연다 — 실제처럼 plugin 을 'flightdeck' 으로 둔다. 단, 테스트 킷은 매처의 plugin 기본값
+// (생략하면 자기 플러그인 것만)을 적용하지 않아 register.tsx 매처에서 plugin: '*' 가 빠져도 여기선 통과한다.
 const PANE = {
-  plugin: 'mods',
+  plugin: 'flightdeck',
   component: 'Pane',
   requestId: 'flightdeck',
   surface: 'terminal',
