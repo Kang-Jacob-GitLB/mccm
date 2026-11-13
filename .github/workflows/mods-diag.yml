@@ -1,0 +1,12 @@
+# 임시: mods pr-line·action-line 이 Flightdeck 패널에 붙는지 확인하기 위한 진단용. 머지하지 않는다.
+name: mods-diag
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  noop:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "mods pane diag"
