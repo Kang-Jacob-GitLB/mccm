@@ -49,8 +49,11 @@ async function gh($: EngineInterface, args: string[]): Promise<string | undefine
 
 async function currentBranch($: EngineInterface): Promise<string | undefined> {
   try {
-    const r = await $.process.run(['git', 'branch', '--show-current'], RUN_INIT)
-    return r.exitCode === 0 ? r.stdout.trim() : undefined
+    // git branch --show-current 는 2.22+ 전용이라 구버전 서버에서도 되는 symbolic-ref 를 쓴다.
+    // 첫 커밋 전 저장소에서도 브랜치 이름이 나오고, detached HEAD 에서는 종료 코드 1 이라 브랜치 없음이 된다.
+    const r = await $.process.run(['git', 'symbolic-ref', '--short', '-q', 'HEAD'], RUN_INIT)
+    const branch = r.exitCode === 0 ? r.stdout.trim() : ''
+    return branch || undefined
   } catch {
     return undefined
   }
