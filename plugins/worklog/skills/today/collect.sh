@@ -82,14 +82,19 @@ roots_tsv() {
     for d in /mnt/c/Users/*/.claude/projects; do
       [ -d "$d" ] && printf '%s\t%s\n' "windows" "$d"
     done
-  elif [ "$THIS_ENV" = "windows" ] && command -v wsl.exe >/dev/null 2>&1; then
-    # WSL 배포판 자동 탐색 — wsl.exe -l -q 출력은 UTF-16LE(+ NUL/CR) 이라 정리.
+  elif [ "$THIS_ENV" = "windows" ] && command -v reg.exe >/dev/null 2>&1; then
+    # WSL 배포판 자동 탐색 — wsl.exe 를 부르지 않고 등록 레지스트리(Lxss)를 읽는다.
+    # WSL 을 지워도 system32\wsl.exe 스텁은 남아, 호출하면 "아무 키나 눌러 설치" 창이
+    # 60초간 뜬다. 레지스트리는 배포판이 없으면 조용히 빈 결과다.
+    # MSYS2_ARG_CONV_EXCL: Git Bash 가 /s·/v 를 경로로 바꾸지 않게 한다.
     while IFS= read -r distro; do
       [ -n "$distro" ] || continue
       for d in "//wsl.localhost/${distro}/home"/*/.claude/projects; do
         [ -d "$d" ] && printf '%s\t%s\n' "wsl" "$d"
       done
-    done < <(wsl.exe -l -q 2>/dev/null | tr -d '\000\r' | sed -e 's/[[:space:]]*$//' -e '/^$/d')
+    done < <(MSYS2_ARG_CONV_EXCL='*' reg.exe query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss' \
+               /s /v DistributionName 2>/dev/null \
+             | tr -d '\r' | awk '$1=="DistributionName" && $2=="REG_SZ" { sub(/^[[:space:]]*DistributionName[[:space:]]+REG_SZ[[:space:]]+/, ""); print }')
   fi
   for r in ${EXTRA_ROOTS+"${EXTRA_ROOTS[@]}"}; do
     if [ -d "$r" ]; then printf '%s\t%s\n' "remote" "$r"
