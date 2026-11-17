@@ -43,7 +43,7 @@ SKILL_DIR="$(dirname "$(find "$HOME/.claude/plugins/cache" "$HOME/.claude/skills
 
 ## 데이터 소스 (Claude Code 트랜스크립트)
 - 위치: `~/.claude/projects/<cwd-slug>/<session-id>.jsonl` (Windows `C:\Users\<user>\.claude\projects\...`).
-- **머신 자동 병합**: WSL 실행 시 Windows(`/mnt/c/...`)도, Windows(Git Bash/MSYS) 실행 시 WSL(`//wsl.localhost/<distro>/...`)도 함께 스캔. 한쪽만 있으면 단독 진행.
+- **머신 자동 병합**: WSL 실행 시 Windows(`/mnt/c/...`)도, Windows(Git Bash/MSYS) 실행 시 WSL(`//wsl.localhost/<distro>/...`)도 함께 스캔. 한쪽만 있으면 단독 진행. Windows 쪽 배포판 목록은 레지스트리(`HKCU\...\Lxss`)에서 읽는다 — `wsl.exe` 는 부르지 않는다(WSL 을 지운 PC에서 남은 스텁이 60초짜리 설치 안내 창을 띄우기 때문).
 - **원격 머신(추가 루트)**: 다른 머신 홈을 마운트한 경로(예: 원격 우분투를 네트워크 드라이브로 붙인 `/z/.claude/projects`)는 `~/.config/mccm/worklog-roots` 에 한 줄씩 적어 두면 `collect.sh` 가 매번 합친다(`#` 주석·빈 줄 무시, 위치는 `WORKLOG_ROOTS_FILE` env 로 변경). 이 루트의 이벤트는 env `remote` 로 찍힌다. 파일이 없으면 기존처럼 로컬+WSL 만 읽는다.
 - `collect.sh` 정규화 출력 스키마(과거 hook JSONL 과 동일):
   ```json
