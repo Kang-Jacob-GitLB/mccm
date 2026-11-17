@@ -11,7 +11,7 @@ allowed-tools: Bash, Read
 
 ## 현재 상태
 
-- 현재 브랜치: !`git rev-parse --abbrev-ref HEAD`
+- 현재 브랜치: !`git symbolic-ref --short -q HEAD || git rev-parse --short HEAD`
 - 베이스 브랜치와의 커밋 목록: !`git log main..HEAD --oneline`
 - 베이스 브랜치와의 변경 diff: !`git diff main..HEAD`
 
