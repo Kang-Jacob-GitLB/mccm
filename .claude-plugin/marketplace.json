@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "개인용 Claude Code 플러그인 마켓플레이스",
-    "version": "7.9.1"
+    "version": "7.9.2"
   },
   "allowCrossMarketplaceDependenciesOn": ["claude-flightdeck"],
   "plugins": [

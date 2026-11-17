@@ -49,8 +49,11 @@ async function gh($: EngineInterface, args: string[]): Promise<string | undefine
 
 async function currentBranch($: EngineInterface): Promise<string | undefined> {
   try {
-    const r = await $.process.run(['git', 'branch', '--show-current'], RUN_INIT)
-    return r.exitCode === 0 ? r.stdout.trim() : undefined
+    // git branch --show-current 는 2.22+ 전용이라 구버전 서버에서도 되는 rev-parse 를 쓴다.
+    // detached HEAD 에서는 브랜치 이름 대신 'HEAD' 가 나오므로 브랜치 없음으로 본다.
+    const r = await $.process.run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], RUN_INIT)
+    const branch = r.exitCode === 0 ? r.stdout.trim() : ''
+    return branch && branch !== 'HEAD' ? branch : undefined
   } catch {
     return undefined
   }

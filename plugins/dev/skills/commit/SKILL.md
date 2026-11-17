@@ -7,7 +7,7 @@ allowed-tools: Bash, Read
 
 ## 현재 상태
 
-- 현재 브랜치: !`git branch --show-current`
+- 현재 브랜치: !`git rev-parse --abbrev-ref HEAD`
 - Git 상태: !`git status`
 - 변경 사항 diff: !`git diff HEAD`
 - 최근 커밋: !`git log --oneline -5`

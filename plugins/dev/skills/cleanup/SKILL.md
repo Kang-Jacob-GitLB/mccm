@@ -7,7 +7,7 @@ allowed-tools: Bash, Read
 
 ## 현재 상태
 
-- 현재 브랜치: !`git branch --show-current`
+- 현재 브랜치: !`git rev-parse --abbrev-ref HEAD`
 - 워킹 트리 상태: !`git status --short`
 - 로컬 브랜치 목록: !`git branch`
 - Remote에서 삭제된 브랜치: !`git fetch --prune --dry-run 2>&1`
