@@ -14,6 +14,22 @@
 # 이후 모든 epoch↔로컬 변환은 l2e/e2l/tz_today/tz_midnight 만 쓰면 양쪽이 동일해진다.
 # awk strftime 을 직접 쓸 때는 `strftime(fmt, epoch + TZ_OFF)` 로 호출한다.
 
+# macOS: BSD date/awk/find 로는 date -d·awk strftime·find -newermt @epoch 가 안 된다.
+# Homebrew 의 GNU 도구(coreutils·gawk·findutils) gnubin 을 PATH 앞에 둔다. 없으면 경고만 낸다.
+if [ "$(uname -s)" = Darwin ]; then
+  for _g in /opt/homebrew/opt /usr/local/opt; do
+    for _p in coreutils/libexec/gnubin findutils/libexec/gnubin gawk/libexec/gnubin; do
+      if [ -d "$_g/$_p" ]; then
+        case ":$PATH:" in *":$_g/$_p:"*) ;; *) PATH="$_g/$_p:$PATH" ;; esac
+      fi
+    done
+  done
+  export PATH; unset _g _p
+  if ! { date -d @0 +%s && awk 'BEGIN{strftime("%H",0)}'; } >/dev/null 2>&1; then
+    echo "worklog: macOS 에는 GNU 도구가 필요하다 — brew install coreutils gawk findutils" >&2
+  fi
+fi
+
 # "+0900"/"-0530" → 초
 _tz_parse() {
   local z=$1 s

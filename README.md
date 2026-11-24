@@ -98,7 +98,7 @@ Claude Code mod(세션 안에서 도는 TypeScript 훅 모듈) 여러 개를 플
 
 | 스킬 | 설명 |
 |------|------|
-| [today](plugins/worklog/skills/today/) | 오늘(또는 지정일) 트랜스크립트(로컬·WSL + `~/.config/mccm/worklog-roots`에 적은 원격 마운트) → `prep.sh` 동시 수집(활동·커밋·회의·Jira 후보·당일 워크로그) → 출근·퇴근 예정(또는 총 근무시간) 확인 → 시간대·프로젝트·커밋·prompt 주제 요약 + 30분 슬롯 타임라인 + 근무시간에 맞춘 Jira 워크로그 dry-run/apply(멀티라인 코멘트, 내 담당 이슈에만 — 후보는 내 담당 미완료만, 입력 시 행마다 담당자 검사) · 맞는 활성 티켓이 없는 작업은 `jira-task-create`로 새 티켓 생성 추천 · `11:30예약` 처럼 시각을 주면 그 시각에 실행하도록 예약 |
+| [today](plugins/worklog/skills/today/) | 오늘(또는 지정일) 트랜스크립트(로컬·WSL + `~/.config/mccm/worklog-roots`에 적은 원격 마운트 + `~/.config/mccm/worklog-remotes`에 적은 ssh 원격 머신 — 연결돼 있을 때만) → `prep.sh` 동시 수집(활동·커밋·회의·Jira 후보·당일 워크로그) → 출근·퇴근 예정(또는 총 근무시간) 확인 → 시간대·프로젝트·커밋·prompt 주제 요약 + 30분 슬롯 타임라인 + 근무시간에 맞춘 Jira 워크로그 dry-run/apply(멀티라인 코멘트, 내 담당 이슈에만 — 후보는 내 담당 미완료만, 입력 시 행마다 담당자 검사) · 맞는 활성 티켓이 없는 작업은 `jira-task-create`로 새 티켓 생성 추천 · `11:30예약` 처럼 시각을 주면 그 시각에 실행하도록 예약 |
 | [week](plugins/worklog/skills/week/) | 이번 주(또는 지난주/지정 범위) 내 Jira 워크로그 집계 → 프로젝트별(이슈 제목 `[태그]` → 로컬 프로필의 프로젝트 표시명, 태그 없으면 `경상`) `■ 프로젝트` / 번호 항목 / `◦` 세부 형식에 완료일(해결일)·진행 마감(~End date)·경상 워크로그별 날짜를 붙인 작업 서술을 문서 도구에 붙여넣을 일반 텍스트 주간보고로 출력 (Jira 읽기 전용, 시간·이슈키는 본문 제외) |
 | [jira-task-create](plugins/worklog/skills/jira-task-create/) | 세션 작업(커밋·PR·산출물) → 상위 에픽 아래 Jira "작업" 티켓 초안. 에픽이 없으면 최근 담당 티켓의 상위 에픽·프로필 프로젝트 미완료 에픽에서 후보 3개 추천, 참고 티켓 필드 구성 승계, createmeta 사전 확인·중복 확인·영업일 원래 추정치 → **승인 후에만** REST 생성 → 필드 검증 표 |
 | [jira-epic-create](plugins/worklog/skills/jira-epic-create/) | 참고 에픽의 필드 구성(프로젝트·워크 스페이스·참조자·우선순위·레이블·제목 형식) → 새 Jira 에픽 초안. createmeta 사전 확인·같은 주제 에픽 중복 확인·영업일 원래 추정치 → **승인 후에만** REST 생성(`create-epic`: parent 포함·에픽 아닌 유형은 POST 전 거부) → 필드 검증 표. 그 아래 작업은 `jira-task-create`로 이어 생성 |
@@ -190,7 +190,17 @@ bash plugins/worklog/skills/today/_profile.sh --check
 /z/.claude/projects
 ```
 
-`prep.sh` 출력의 `SOURCES` 섹션에 실제로 읽은 루트가 나오고, 마운트가 끊긴 루트는 `⚠ 미연결`로 표시된다.
+마운트 없이 **ssh로 닿는 머신**은 `~/.config/mccm/worklog-remotes`에 `<ssh 호스트> [linux|windows]`를 한 줄씩 적는다(`WORKLOG_REMOTES_FILE` env로 위치 변경). `collect.sh`가 자기 자신을 ssh로 보내 원격에서 돌리고 이벤트만 받아 합친다 — 원격에는 `bash`·`jq`만 있으면 되고 플러그인을 설치할 필요가 없다. `windows`는 기본 셸이 PowerShell인 Windows OpenSSH용으로, Git Bash로 실행한다. 비밀번호 없이(`BatchMode`) 접속되는 호스트만 쓸 수 있고, 연결이 안 되면 기다리지 않고(접속 대기 6초) 건너뛴다. 이 파일도 로컬 전용이며 동기화하지 않는다.
+
+```text
+# ~/.config/mccm/worklog-remotes
+build-server   linux     # 우분투 빌드서버 (~/.ssh/config 의 Host 별칭)
+win-pc         windows   # Windows PC
+```
+
+`prep.sh` 출력의 `SOURCES` 섹션에 실제로 읽은 루트가 나오고(ssh 원격은 `env@호스트`), 마운트가 끊긴 루트나 연결되지 않은 ssh 원격은 `⚠ 미연결`로 표시된다. ACTIVITY에서는 ssh 원격 활동이 `[호스트:디렉터리]`로 구분된다.
+
+**macOS:** BSD `date`·`awk`·`find`로는 동작하지 않는다. `brew install coreutils gawk findutils`를 설치하면 스크립트가 Homebrew GNU 도구를 PATH 앞에 자동으로 둔다.
 
 > **⚠️ 비밀을 넣지 말 것:**
 > - Jira API 토큰은 `worklog.json`이 아니라 `JIRA_API_TOKEN` 환경변수가 담당한다.
