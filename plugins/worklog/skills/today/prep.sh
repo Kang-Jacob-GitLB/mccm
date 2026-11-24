@@ -67,7 +67,9 @@ CAL_OFF="${CAL_Z:0:3}:${CAL_Z:3:2}"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
 # ── 동시 수집: 트랜스크립트(느림) ∥ jira 후보 ∥ 당일 워크로그 ∥ 이슈상세 ──
-"$DIR/collect.sh" "$DATE" ${SINCE:+--since "$SINCE"} ${UNTIL:+--until "$UNTIL"} \
+# bash 로 부른다 — 저장소·플러그인 캐시의 .sh 는 실행 비트가 없다(644). 직접 실행하면
+# macOS/Linux 에서 Permission denied 로 ACTIVITY·SOURCES 가 조용히 빈다(Git Bash 만 통과).
+bash "$DIR/collect.sh" "$DATE" ${SINCE:+--since "$SINCE"} ${UNTIL:+--until "$UNTIL"} \
   > "$TMP/act.jsonl" 2> "$TMP/act.err" &
 jira_candidates "$PROJECT" > "$TMP/cand.tsv" 2>/dev/null &
 (
@@ -165,10 +167,11 @@ printf '\n## ACTIVITY (prompts · 로컬시각)\n'
 # 채워 저녁 활동이 잘려 나가므로 여기서 뺀다.
 jq -r 'select(.event=="prompt")
        | select((.prompt//"") | test("^(Name this chat from the user|Base directory for this skill:|This session is being continued from a previous conversation|Another Claude session sent a message:)") | not)
-       | [.epoch,(.cwd//""),((.prompt//"")|gsub("[\r\n\t]+";" "))] | @tsv' "$TMP/act.jsonl" \
+       | [.epoch,(.cwd//""),(.host//""),((.prompt//"")|gsub("[\r\n\t]+";" "))] | @tsv' "$TMP/act.jsonl" \
   | awk -F'\t' -v OFF="${TZ_OFF:-0}" '
       { e=$1+OFF; cwd=$2; gsub(/\\/,"/",cwd); n=split(cwd,a,"/"); base=a[n]
-        pr=$3; if(length(pr)>110) pr=substr(pr,1,110)
+        if($3!="") base=$3 ":" base    # ssh 원격(worklog-remotes) 이벤트는 [호스트:디렉터리]
+        pr=$4; if(length(pr)>110) pr=substr(pr,1,110)
         printf "%s  [%s] %s\n", strftime("%H:%M",e), base, pr }' \
   > "$TMP/act.txt"
 # ACTIVITY 는 배분의 근거라 다른 섹션보다 상한을 넉넉히(--max×4) 잡는다. 여러 머신을 합치면

@@ -20,8 +20,17 @@
 #                   한 줄에 디렉터리 하나, # 주석·빈 줄 무시. 원격 머신 홈을 마운트한
 #                   경로(예: /z/.claude/projects)를 두면 매번 --root 없이 합쳐진다.
 #                   --root·추가 루트 파일의 이벤트는 env "remote" 로 찍힌다.
-#   stderr          읽은 루트는 "ROOT<TAB>env<TAB>dir", 없는(미연결) 추가 루트는
-#                   "WARN<TAB>dir" 로 낸다 — prep.sh 가 SOURCES 섹션으로 옮긴다.
+#   원격 호스트 파일 ~/.config/mccm/worklog-remotes (WORKLOG_REMOTES_FILE env 로 변경) —
+#                   한 줄에 "<ssh 호스트> [linux|windows]", # 주석·빈 줄 무시. 마운트 없이
+#                   ssh 로 이 스크립트(+_tz.sh)를 원격에서 --local-only 로 돌려 이벤트만
+#                   받아 합친다(원격엔 bash·jq 만 있으면 된다, 플러그인 설치 불필요).
+#                   windows 는 기본 셸이 PowerShell 인 Windows OpenSSH — Git Bash 로 실행한다.
+#                   원격 이벤트에는 host 필드가 붙는다. 연결 안 되면 WARN 으로 남기고 넘어간다
+#                   (BatchMode·ConnectTimeout — 비밀번호 프롬프트로 멈추지 않는다).
+#   --local-only    자동 탐지 루트(로컬 홈·WSL)만 읽는다 — 추가 루트·원격 호스트 파일을
+#                   건너뛴다. 원격 호출이 쓴다(재귀 방지, 그 머신의 마운트 루트와의 중복 방지).
+#   stderr          읽은 루트는 "ROOT<TAB>env<TAB>dir"(원격은 env@host), 없는(미연결) 추가
+#                   루트·원격은 "WARN<TAB>dir" 로 낸다 — prep.sh 가 SOURCES 섹션으로 옮긴다.
 #   --since <HH:MM> 대상일 내 그 로컬 시각 이후(>=) 이벤트만 출력.
 #   --until <HH:MM> 대상일 내 그 로컬 시각 이전(<) 이벤트만 출력.
 #   -h|--help
@@ -39,9 +48,11 @@ TZ_IANA="Asia/Seoul"
 DATE=""
 SINCE=""
 UNTIL=""
+LOCAL_ONLY=0
 EXTRA_ROOTS=()
 while [ $# -gt 0 ]; do
   case "$1" in
+    --local-only) LOCAL_ONLY=1; shift ;;
     --tz)    TZ_IANA="${2:?}"; shift 2 ;;
     --root)  EXTRA_ROOTS+=("${2:?}"); shift 2 ;;
     --since) SINCE="${2:?}"; shift 2 ;;   # 대상일 내 HH:MM 이후만 (로컬)
@@ -55,10 +66,22 @@ command -v jq >/dev/null 2>&1 || { echo "ERROR: jq 없음" >&2; exit 1; }
 
 # 공통 TZ 유틸 로드 → tzdata 부재(Windows Git Bash 등) 환경에서도 날짜 경계가
 # UTC 로 9시간 어긋나지 않게 한다.
-. "$(dirname "${BASH_SOURCE[0]}")/_tz.sh"
+# 원격 실행 때는 _tz.sh 를 이 스크립트 앞에 이어 붙여 보내므로 이미 정의돼 있다.
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! type tz_setup >/dev/null 2>&1; then
+  # 원격(--local-only)으로 받은 스트림에 _tz.sh 가 빠졌으면 옆 파일을 찾지 않는다 — 남의 파일 source 방지.
+  if [ "$LOCAL_ONLY" = 1 ] && [ ! -O "$SELF_DIR/_tz.sh" ]; then echo "ERROR: tz_setup 없음" >&2; exit 3; fi
+  . "$SELF_DIR/_tz.sh"
+fi
 tz_setup "$TZ_IANA"
 
 [ -n "$DATE" ] || DATE="$(tz_today)"
+# 입력 검증 — 이 값들은 원격 ssh 명령줄에 실린다(셸 인젝션 차단). 전체 매칭.
+[[ "$DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo "잘못된 날짜: $DATE" >&2; exit 2; }
+[[ "$TZ_IANA" =~ ^[A-Za-z][A-Za-z0-9_+/-]*$ ]] || { echo "잘못된 타임존: $TZ_IANA" >&2; exit 2; }
+for v in "$SINCE" "$UNTIL"; do
+  [ -z "$v" ] || [[ "$v" =~ ^[0-2][0-9]:[0-5][0-9]$ ]] || { echo "잘못된 시각(HH:MM): $v" >&2; exit 2; }
+done
 # 대상일(로컬 TZ) 자정 ~ 익일 자정 → UTC epoch 경계
 START=$(tz_midnight "$DATE")
 END=$(( START + 86400 ))
@@ -93,7 +116,7 @@ roots_tsv() {
         [ -d "$d" ] && printf '%s\t%s\n' "wsl" "$d"
       done
     done < <(MSYS2_ARG_CONV_EXCL='*' reg.exe query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Lxss' \
-               /s /v DistributionName 2>/dev/null \
+               /s /v DistributionName 2>/dev/null </dev/null \
              | tr -d '\r' | awk '$1=="DistributionName" && $2=="REG_SZ" { sub(/^[[:space:]]*DistributionName[[:space:]]+REG_SZ[[:space:]]+/, ""); print }')
   fi
   for r in ${EXTRA_ROOTS+"${EXTRA_ROOTS[@]}"}; do
@@ -104,7 +127,7 @@ roots_tsv() {
 
 # 추가 루트 파일(원격 머신 마운트 등). 줄을 경로 문자열로만 쓴다 — 셸로 평가하지 않는다.
 ROOTS_FILE="${WORKLOG_ROOTS_FILE:-$HOME/.config/mccm/worklog-roots}"
-if [ -f "$ROOTS_FILE" ]; then
+if [ "$LOCAL_ONLY" != 1 ] && [ -f "$ROOTS_FILE" ]; then
   while IFS= read -r line || [ -n "$line" ]; do
     line="${line%$'\r'}"
     line="${line#"${line%%[![:space:]]*}"}"; line="${line%"${line##*[![:space:]]}"}"
@@ -183,7 +206,59 @@ def restext($rc):
     else empty end )
 JQ
 
-TMP="$(mktemp)"; trap 'rm -f "$TMP"' EXIT
+TMP="$(mktemp)"; RTMP="$(mktemp -d)"; trap 'rm -rf "$TMP" "$RTMP"' EXIT
+
+# ── 원격 호스트(ssh) — 로컬 루트를 읽는 동안 병렬로 돈다 ──
+# 원격에서는 stdin 으로 받은 스크립트를 임시파일에 다 받은 뒤 실행한다 — bash -s 로 바로
+# 돌리면 스크립트 실행 중의 자식(reg.exe 등)이 남은 스크립트 바이트를 stdin 으로 먹을 수 있다.
+# 큰따옴표를 쓰지 않는다: Windows PowerShell 5.1 은 네이티브 인자 속 " 를 이스케이프하지 않아
+# Git Bash 에 깨져 도착한다. 인자는 위에서 검증한 공백 없는 토큰뿐이다.
+# 개인(0700) 임시 디렉터리에 받는다 — 원격의 SELF_DIR 이 공용 /tmp 가 되지 않게. 다 받았을 때만 실행.
+REMOTE_RUNNER='d=$(mktemp -d) || exit 97; f=$d/collect.sh; cat >$f && bash $f $@; rc=$?; rm -rf -- $d; exit $rc'
+REMOTE_HOSTS=()   # "host<TAB>kind"
+REMOTE_PIDS=()
+REMOTES_FILE="${WORKLOG_REMOTES_FILE:-$HOME/.config/mccm/worklog-remotes}"
+if [ "$LOCAL_ONLY" != 1 ] && [ -f "$REMOTES_FILE" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"; line="${line%%#*}"
+    h=""; k=""
+    read -r h k _ <<<"$line" || true
+    [ -n "$h" ] || continue
+    # 호스트는 ssh 옵션으로 읽힐 수 없게(선행 -) 안전한 문자만. 줄을 셸로 평가하지 않는다.
+    if ! [[ "$h" =~ ^[A-Za-z0-9][A-Za-z0-9._@-]*$ ]]; then printf 'WARN\tssh:(잘못된 호스트 이름 무시)\n' >&2; continue; fi
+    case "${k:-linux}" in
+      linux|windows) REMOTE_HOSTS+=("$h"$'\t'"${k:-linux}") ;;
+      *) printf 'WARN\tssh:%s (알 수 없는 종류 %s — linux|windows)\n' "$h" "$k" >&2 ;;
+    esac
+  done < "$REMOTES_FILE"
+fi
+
+remote_collect() {   # host kind outprefix
+  local h="$1" k="$2" o="$3" pre args
+  args="$DATE --tz $TZ_IANA --local-only${SINCE:+ --since $SINCE}${UNTIL:+ --until $UNTIL}"
+  case "$k" in
+    # PATH: 비대화형 ssh 는 ~/.local/bin 을 안 넣는 배포판이 많다(jq 를 거기 두는 경우).
+    linux)   pre='PATH=$HOME/.local/bin:$PATH bash -c' ;;
+    # 맨 bash 는 System32\bash.exe(WSL 런처)로 풀린다 — Git Bash 를 명시한다.
+    windows) pre='& "$env:ProgramFiles\Git\bin\bash.exe" -c' ;;
+  esac
+  # set -e 아래에서 실패한 파이프라인이 서브셸을 끝내기 전에 rc 를 남긴다(if 문맥).
+  if { cat "$SELF_DIR/_tz.sh"; cat "$SELF_DIR/collect.sh"; } \
+     | ssh -T -o BatchMode=yes -o ConnectTimeout=6 -o ServerAliveInterval=5 -o ServerAliveCountMax=3 \
+           -o ForwardAgent=no -o ForwardX11=no -o ClearAllForwardings=yes -o PermitLocalCommand=no \
+           -- "$h" "$pre '$REMOTE_RUNNER' wl $args" > "$o.out" 2> "$o.err"; then
+    echo 0 > "$o.rc"
+  else
+    echo "$?" > "$o.rc"
+  fi
+}
+
+i=0
+for hk in ${REMOTE_HOSTS+"${REMOTE_HOSTS[@]}"}; do
+  i=$(( i + 1 ))
+  remote_collect "${hk%%$'\t'*}" "${hk#*$'\t'}" "$RTMP/$i" </dev/null &
+  REMOTE_PIDS+=("$!")
+done
 
 SEEN_ROOTS=$'\n'   # 연관배열 대신 문자열 — macOS 기본 bash 3.2 호환
 while IFS=$'\t' read -r env root; do
@@ -203,13 +278,38 @@ while IFS=$'\t' read -r env root; do
      "$JQPROG" "${files[@]}" 2>/dev/null >> "$TMP" || true
 done < <(roots_tsv)
 
-# commit 은 sha 로 dedup(최초 epoch 유지). --since/--until 지정 시 epoch 로 필터.
+# 원격 결과 합치기 — fail-closed: 원격 자신의 ROOT 줄이 와야만 성공으로 본다.
+# 연결 실패(255)·jq 없음·스크립트 오류는 모두 SOURCES 에 미연결로 남는다.
+i=0
+for hk in ${REMOTE_HOSTS+"${REMOTE_HOSTS[@]}"}; do
+  i=$(( i + 1 )); h="${hk%%$'\t'*}"; o="$RTMP/$i"
+  wait "${REMOTE_PIDS[$(( i - 1 ))]}" 2>/dev/null || true
+  rc="$(cat "$o.rc" 2>/dev/null || echo '?')"
+  if [ "$rc" = 0 ] && grep -q $'^ROOT\t' "$o.err" 2>/dev/null; then
+    # 원격 stderr 는 원격 계정이 쓴 텍스트다(.bashrc echo 등) — 허용 문자만 남기고 줄 수를 제한한다.
+    awk -F'\t' -v h="$h" 'n<20 && ($1=="ROOT"||$1=="WARN") { n++
+        for (i=2; i<=3; i++) gsub(/[^A-Za-z0-9._\/:@~ -]/, "?", $i)
+        if ($1=="ROOT") printf "ROOT\t%s@%s\t%s\n", $2, h, $3; else printf "WARN\t%s:%s\n", h, $2 }' "$o.err" >&2
+    jq -c --arg h "$h" '. + {host:$h}' "$o.out" >> "$TMP" 2>/dev/null || true
+  else
+    # 사유는 ssh 클라이언트 자신의 오류(rc 255, "ssh: …")만 정제해 싣는다 — 원격 자유 텍스트는 버린다.
+    why=""
+    if [ "$rc" = 255 ]; then
+      why="$(grep -e '^ssh: ' "$o.err" 2>/dev/null | tail -n 1 | tr -cd 'A-Za-z0-9._/:@ -' | cut -c1-120)"
+    fi
+    printf 'WARN\tssh:%s (rc=%s%s)\n' "$h" "$rc" "${why:+ · $why}" >&2
+  fi
+done
+
+# commit 은 sha 로 dedup(최초 epoch 유지). 나머지는 같은 세션의 같은 이벤트가 두 경로
+# (예: 마운트 루트 + ssh 원격)로 들어와도 한 번만 남긴다. --since/--until 지정 시 epoch 로 필터.
 # 전체 epoch 오름차순 출력.
 jq -c -s --arg since "${SINCE_EPOCH:-}" --arg until "${UNTIL_EPOCH:-}" '
   (if $since=="" then null else ($since|tonumber) end) as $s
   | (if $until=="" then null else ($until|tonumber) end) as $u
-  | ([ .[] | select(.event=="commit" and (.sha//"")!="") ] | group_by(.sha) | map(min_by(.epoch))) as $commits
-  | ([ .[] | select(.event!="commit") ] + $commits)
+  | ([ .[] | select(.event=="commit" and (.sha//"")!="") ] | group_by(.sha)
+     | map(sort_by((.host != null), .epoch) | .[0])) as $commits   # 같은 sha 면 로컬 기록 우선(원격이 덮지 못함)
+  | ([ .[] | select(.event!="commit") ] | unique_by([.event, .session_id, .epoch, (.prompt//"")])) + $commits
   | map(select( ($s==null or .epoch>=$s) and ($u==null or .epoch<$u) ))
   | sort_by(.epoch) | .[]
 ' "$TMP"
