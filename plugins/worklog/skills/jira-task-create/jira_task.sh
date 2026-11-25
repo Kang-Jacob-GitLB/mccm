@@ -30,6 +30,9 @@ set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../today/_jira.sh
 . "$HERE/../today/_jira.sh" || { echo "ERROR: ../today/_jira.sh 를 찾지 못했다 (worklog 플러그인 설치 확인)" >&2; exit 1; }
+# macOS 의 BSD date 는 bizdays 의 `date -d` 를 못 읽는다 — _tz.sh 가 Homebrew gnubin 을 PATH 앞에 둔다.
+# shellcheck source=../today/_tz.sh
+. "$HERE/../today/_tz.sh" || { echo "ERROR: ../today/_tz.sh 를 찾지 못했다 (worklog 플러그인 설치 확인)" >&2; exit 1; }
 
 command -v jq >/dev/null 2>&1 || { echo "ERROR: jq 필요" >&2; exit 1; }
 
