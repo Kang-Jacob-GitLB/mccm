@@ -393,10 +393,10 @@ done
 
 echo "---"
 if [ "$APPLY" -eq 1 ]; then
-  echo "결과: 입력 $n건 → OK=$ok SKIP=$skip FAIL=$fail"
+  echo "결과: 입력 ${n}건 → OK=$ok SKIP=$skip FAIL=$fail"
 else
   # dry-run 도 FAIL 을 집계에 드러낸다 — 여기서 안 보이면 --apply 에서 처음 알게 된다.
-  echo "(dry-run) 대상 $n건 → DRY=$((n-skip-fail)) SKIP=$skip FAIL=$fail. 실제 입력하려면 동일 입력에 --apply 를 붙인다."
+  echo "(dry-run) 대상 ${n}건 → DRY=$((n-skip-fail)) SKIP=$skip FAIL=$fail. 실제 입력하려면 동일 입력에 --apply 를 붙인다."
 fi
 # FAIL 이 있으면 dry-run 도 비정상 종료 — 파이프라인이 조용히 통과하지 않게.
 [ "$fail" -gt 0 ] && exit 1 || true
