@@ -69,6 +69,8 @@ env 플러그인은 `mccm.json` 파일 하나에 환경 전체를 선언적으�
 | T2 `opus` | synthesizer | 다중 결과 합성·최종 판정 |
 | T2 `opus` | debugger | 증상→원인 동적 진단 (유일한 T2 쓰기 권한) |
 
+**감독관 모드** — [`manager-mode.md`](plugins/dev/manager-mode.md)가 `model-routing.md`와 같은 SessionStart 훅으로 주입된다. 파일 3개 이상 수정·단계가 둘 이상·독립 작업이 둘 이상인 요청이면, 사용자가 "팀"을 언급하지 않아도 메인 세션(팀 리드)이 감독관이 되어 착수(DoD 확정) → 계획 → 분배·추적 → 검증 게이트(T2 개별 호출) → 종료(체크리스트·보고, 커밋은 사용자 요청 시)를 관리한다. 팀원·서브에이전트로 스폰된 세션은 적용하지 않으며, "그냥 해" / "직접 해"로 끌 수 있다.
+
 ### mods — Claude Code mod 모음
 
 Claude Code mod(세션 안에서 도는 TypeScript 훅 모듈) 여러 개를 플러그인 하나에 담는다. 플러그인 하나는 hooks 모듈을 하나만 가질 수 있어, 진입점 `hooks/register.tsx`가 각 mod(`hooks/<mod>/index.tsx`)를 불러 등록한다. 특정 mod를 끄려면 `/plugin configure mods@mccm`의 `disabled`에 이름을 쉼표로 적는다.
@@ -229,6 +231,7 @@ mccm/
     │   ├── .claude-plugin/
     │   │   └── plugin.json
     │   ├── model-routing.md         ← 티어 정책 (SessionStart 훅으로 주입)
+    │   ├── manager-mode.md          ← 감독관 절차 (SessionStart 훅으로 주입)
     │   ├── agents/                  ← 서브에이전트 16종 (*.md)
     │   └── skills/
     │       ├── commit/
